@@ -803,7 +803,7 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
   const lang = getLang();
   // CF-1: audit the live-weighted factors (so the chip matches the displayed score
   // under a custom/persona lens), not the default-weighted set.
-  const coverage = useMemo(() => computeQualityCoverage(props, qualityWeights, getCountryRanges().se), [props, qualityWeights]);
+  const coverage = useMemo(() => computeQualityCoverage(props, qualityWeights, getCountryRanges()[countryOfId(props.pno)]), [props, qualityWeights]);
   const dimScores = props.quality_dimension_scores ?? {};
   if (coverage.total === 0) return null;
   const pct = Math.round((coverage.present / coverage.total) * 100);

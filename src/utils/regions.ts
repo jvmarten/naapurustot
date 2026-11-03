@@ -24,7 +24,6 @@
  */
 
 import { SE_REGION_ROWS, type SeRegionId } from './regionsSe.ts';
-import type { CountryId } from './areaId';
 
 /** A Finnish region (seutukunta) identifier. */
 type FiRegionId =
@@ -781,10 +780,6 @@ export const REGIONS: Record<RegionId, RegionConfig> = { ...FI_REGIONS, ...SE_RE
 /** All region IDs in display order. */
 export const REGION_IDS = Object.keys(REGIONS) as RegionId[];
 
-/** Country a region id belongs to. */
-export function regionCountry(id: string): CountryId {
-  return id.startsWith('se_') ? 'se' : 'fi';
-}
 
 /**
  * Region IDs that have ingested data. All 69 seutukunnat are populated, so this

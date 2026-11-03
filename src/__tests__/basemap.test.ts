@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { AttributionControl, LayerSpecification, Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
+import { styleBaseBorders } from '../utils/countryBorders';
 import {
-  styleBaseBorders,
   basemapStyleUrl,
   firstOverlayLayerId,
   carryDataLayers,

@@ -10,5 +10,5 @@ declare const __BUILD_DATE__: string;
 // per-layer coverage UI (sources page, legend caption, low-coverage banner) reads real
 // coverage without bundling the full per-metric metadata table.
 declare const __COVERAGE_PCT__: Record<string, number>;
-// The same map for Sweden's areas (build_metadata.countries.se).
-declare const __COVERAGE_PCT_SE__: Record<string, number>;
+// The same map for every other country's areas, keyed by its id (build_metadata.countries).
+declare const __COUNTRY_COVERAGE_PCT__: Record<string, Record<string, number>>;

@@ -18,6 +18,7 @@ import type { NeighborhoodProperties, TrendDataPoint } from './metrics';
 import { computeMetroAverages, computeChangeMetrics, parseTrendSeries } from './metrics.ts';
 import { REGIONS } from './regions.ts';
 import { countryOfId } from './areaId.ts';
+import { HOME_COUNTRY } from './countries.ts';
 
 /**
  * Aggregate trend history series across neighborhoods for a metro area.
@@ -192,8 +193,8 @@ export function buildRegionAggregates(allFeatures: Feature[]): RegionAggregatesD
     regions[order[i]] = synthetic[i].properties as RegionAggregateRecord;
   }
 
-  // "National" means Finland: Swedish areas have their own regions here, but averaging
-  // them into Finland's figures would move every "vs. whole country" comparison.
-  const finnish = allFeatures.filter((f) => countryOfId((f.properties as NeighborhoodProperties)?.pno) === 'fi');
+  // "National" means HOME (Finland): other countries' areas have their own regions here,
+  // but averaging them into Finland's figures would move every "vs. whole country" comparison.
+  const finnish = allFeatures.filter((f) => countryOfId((f.properties as NeighborhoodProperties)?.pno) === HOME_COUNTRY);
   return { national: computeMetroAverages(finnish), regions };
 }

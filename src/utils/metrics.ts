@@ -1,5 +1,6 @@
 import type { RegionId } from './regions';
 import { countryOfId, type CountryId } from './areaId.ts';
+import { HOME_COUNTRY, forCountry } from './countries.ts';
 // Import attribute required so this module runs under Node's type-stripping in
 // scripts/prerender.mjs (which imports metrics.ts directly), not just under Vite.
 import dataSources from '../data/data_sources.json' with { type: 'json' };
@@ -393,13 +394,19 @@ export function pop20to64(p: NeighborhoodProperties): number | null {
  * Phase 7: Compute demographic detail metrics from existing Paavo fields.
  * These layers require no new data — they derive from fields already in the GeoJSON.
  */
+/** Where foreign_share_pct comes from in each country: HOME's foreign-language estimate,
+ *  Sweden's foreign background (it keeps no language statistics). */
+const FOREIGN_SHARE_SOURCE: Partial<Record<CountryId, keyof NeighborhoodProperties>> = {
+  se: 'foreign_background_pct',
+};
+
 export function computeQuickWinMetrics(features: GeoJSON.Feature[]): void {
   for (const f of features) {
     const p = f.properties as NeighborhoodProperties;
     const pop = p.he_vakiy;
 
-    // One layer for both countries' nearest measures (see foreign_share_pct).
-    const foreign = countryOfId(p.pno) === 'se' ? p.foreign_background_pct : p.foreign_language_est_pct;
+    // One layer for every country's nearest measure (see foreign_share_pct).
+    const foreign = p[forCountry(FOREIGN_SHARE_SOURCE, countryOfId(p.pno), 'foreign_language_est_pct')] as number | null | undefined;
     if (foreign != null) p.foreign_share_pct = foreign;
 
     // Youth ratio (18-29 year olds as % of population)
@@ -694,8 +701,8 @@ export const DATA_SOURCE_METRICS: Record<string, RegistryMetricEntry> = REGISTRY
  * property has no registry row. Backs the public sources page (CF-9), the proxy
  * badge (PO-2), and the per-layer freshness panel (PO-3).
  */
-export function getMetricSource(property: string, country: CountryId = 'fi'): ResolvedMetricSource | undefined {
-  const entry = country === 'fi' ? REGISTRY.metrics[property] : REGISTRY.countries?.[country]?.metrics[property];
+export function getMetricSource(property: string, country: CountryId = HOME_COUNTRY): ResolvedMetricSource | undefined {
+  const entry = country === HOME_COUNTRY ? REGISTRY.metrics[property] : REGISTRY.countries?.[country]?.metrics[property];
   if (!entry) return undefined;
   const pub = REGISTRY.publishers[entry.publisher];
   return {
@@ -721,16 +728,16 @@ export function getMetricSource(property: string, country: CountryId = 'fi'): Re
  */
 const COVERAGE_PCT: Record<string, number> =
   typeof __COVERAGE_PCT__ !== 'undefined' ? __COVERAGE_PCT__ : {};
-const COVERAGE_PCT_SE: Record<string, number> =
-  typeof __COVERAGE_PCT_SE__ !== 'undefined' ? __COVERAGE_PCT_SE__ : {};
+const COUNTRY_COVERAGE_PCT: Record<string, Record<string, number>> =
+  typeof __COUNTRY_COVERAGE_PCT__ !== 'undefined' ? __COUNTRY_COVERAGE_PCT__ : {};
 
 /**
  * PO-2: real coverage (% of metro postal codes with a value) for a metric, or
  * null when build_metadata.json carries no coverage_pct for it. Degrades to null
  * rather than fabricating a number, so the UI can simply omit the caption/column.
  */
-export function getCoveragePct(property: string, country: CountryId = 'fi'): number | null {
-  const v = (country === 'se' ? COVERAGE_PCT_SE : COVERAGE_PCT)[property];
+export function getCoveragePct(property: string, country: CountryId = HOME_COUNTRY): number | null {
+  const v = (country === HOME_COUNTRY ? COVERAGE_PCT : COUNTRY_COVERAGE_PCT[country] ?? {})[property];
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
@@ -1028,9 +1035,9 @@ export function computeMetroAverages(features: GeoJSON.Feature[]): Record<string
 
     totalPop += pop;
 
-    // Paavo's raw counts are Finland's; a Swedish area contributes SCB's own pairs
-    // instead, so a mixed selection never pads a Finnish denominator with Swedish people.
-    if (countryOfId(p.pno) === 'fi') {
+    // Paavo's raw counts are HOME's; another country's area contributes its publisher's
+    // own pairs instead, so a mixed selection never pads a Finnish denominator.
+    if (countryOfId(p.pno) === HOME_COUNTRY) {
       hasFinnish = true;
       // Count-based special metrics
       if (p.pt_tyoll != null) { totalEmployed += p.pt_tyoll; hasEmployedData = true; }

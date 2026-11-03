@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { LAYER_MAP, layerInCountry, type LayerId } from '../utils/colorScales';
+import { LAYER_MAP, layerInCountry, countryLabelKey, type LayerId } from '../utils/colorScales';
 import type { CountryId } from '../utils/areaId';
 import {
   getCoveragePct,
@@ -196,7 +196,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
         if (isCollapsed) return [];
         return group.ids.filter((id) => {
           const layer = LAYER_MAP.get(id);
-          return layer ? labelMatches(country === 'se' ? layer.labelKeySe ?? layer.labelKey : layer.labelKey, searchQuery) && layerInCountry(id, country) : false;
+          return layer ? labelMatches(countryLabelKey(layer, country), searchQuery) && layerInCountry(id, country) : false;
         });
       }),
     [collapsed, searchQuery, country],
@@ -418,7 +418,7 @@ export const LayerSelector: React.FC<LayerSelectorProps> = React.memo(({ activeL
                           backgroundColor: isActive ? layer.colors[5] || layer.colors[3] : '#94a3b8',
                         }}
                       />
-                      <span className="truncate min-w-0">{t(country === 'se' ? layer.labelKeySe ?? layer.labelKey : layer.labelKey)}</span>
+                      <span className="truncate min-w-0">{t(countryLabelKey(layer, country))}</span>
                       <LayerSignals property={layer.property} country={country ?? 'fi'} />
                     </div>
                   </button>

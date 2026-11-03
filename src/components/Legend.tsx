@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getLayerById, type LayerId, type LayerConfig } from '../utils/colorScales';
+import { getLayerById, countryStops, ownScaleCountries, type LayerId, type LayerConfig } from '../utils/colorScales';
+import { HOME_COUNTRY } from '../utils/countries';
 import { t, useI18nVersion, type Lang } from '../utils/i18n';
 import { AreaHintPill } from './AreaHintPill';
 import { getGridInfo } from '../hooks/useGridData';
@@ -67,7 +68,10 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
     };
   }, [helpOpen]);
 
-  const perCountry = !country && !!layer.stopsSe;
+  // Not comparable across a border, with several countries on the map: each is coloured
+  // on its own scale, so print every range and say why.
+  const ownScales = country ? [] : ownScaleCountries(layer);
+  const perCountry = ownScales.length > 0;
 
   // Show only first and last tick values
   const n = layer.stops.length;
@@ -151,9 +155,9 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             <div key={i} aria-hidden="true" className="w-6 h-3 first:rounded-l last:rounded-r" style={{ backgroundColor: color }} />
           ))}
         </div>
-        {/* Not comparable across the border (stopsSe) with both countries on the map: each
-            is coloured on its own scale, so print both ranges and say why. */}
-        {(perCountry ? [['FI', layer.stops], ['SE', layer.stopsSe!]] as const : [[null, layer.stops]] as const).map(([cc, stops]) => (
+        {(perCountry
+          ? [HOME_COUNTRY, ...ownScales].map((c) => [c.toUpperCase(), countryStops(layer, c)] as const)
+          : [[null, layer.stops] as const]).map(([cc, stops]) => (
           <div key={cc ?? 'all'} className="flex justify-between mt-1.5" style={{ width: `${layer.colors.length * 24}px` }}>
             {tickIndices.map((idx) => (
               <span
@@ -216,7 +220,7 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
         {/* Two countries' related but differently defined measures on one scale: say so
             wherever Sweden is on the map. */}
         {/* '' until fi-detail.json lands (i18n.ts), so no empty box before it does. */}
-        {layer.crossCountryNoteKey && country !== 'fi' && t(layer.crossCountryNoteKey) && (
+        {layer.crossCountryNoteKey && country !== HOME_COUNTRY && t(layer.crossCountryNoteKey) && (
           <div className="mt-2 text-[10px] text-surface-500 dark:text-surface-400 max-w-[220px] leading-snug">
             {t(layer.crossCountryNoteKey)}
           </div>

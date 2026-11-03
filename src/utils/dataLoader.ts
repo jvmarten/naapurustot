@@ -55,6 +55,7 @@ import type { RegionAggregatesData } from './metroAggregation';
 // ~10.6 MB region_properties. The municipality field lets a town name surface its
 // neighbourhoods even when their own names are generic ("Keskus", "Kirkonkylä").
 import regionSearchIndexUrl from '../data/region_search_index.json?url';
+import { HOME_COUNTRY } from './countries.ts';
 
 /** Result of loading and processing a TopoJSON dataset. */
 export interface ProcessedData {
@@ -149,10 +150,10 @@ function processProperties(propsArray: Record<string, unknown>[]): ProcessedData
   computeQualityIndices(geojson.features, undefined, getCountryRanges());
   computeChangeMetrics(geojson.features);
   computeQuickWinMetrics(geojson.features);
-  // The national averages are Finland's (see buildRegionAggregates), even though the
-  // set also carries Sweden's areas.
+  // The national averages are HOME's (see buildRegionAggregates), even though the set
+  // also carries the other countries' areas.
   const metroAverages = computeMetroAverages(
-    geojson.features.filter((f) => countryOfId(f.properties?.pno) === 'fi'),
+    geojson.features.filter((f) => countryOfId(f.properties?.pno) === HOME_COUNTRY),
   );
 
   return { data: geojson, metroAverages };

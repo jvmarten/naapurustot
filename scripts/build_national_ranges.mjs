@@ -114,7 +114,7 @@ for (const [key, values] of valuesByProp) {
 
 // Only the properties the quality index reads: this file is bundled, and the rest of
 // Sweden's metrics have no client-side use for a range.
-const qiProps = new Set(QUALITY_FACTORS.flatMap((f) => [...f.properties, ...(f.propertiesSe ?? [])]));
+const qiProps = new Set(QUALITY_FACTORS.flatMap((f) => [...f.properties, ...Object.values(f.byCountry ?? {}).flat()]));
 const seRanges = {};
 for (const key of [...qiProps].sort()) {
   const values = [];

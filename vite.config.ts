@@ -43,7 +43,17 @@ function readCoverageMap(country?: string): Record<string, number> {
   }
 }
 const COVERAGE_PCT = readCoverageMap()
-const COVERAGE_PCT_SE = readCoverageMap('se')
+// Every other country's map, keyed by its id (build_metadata.countries.<id>).
+function readCountryCoverage(): Record<string, Record<string, number>> {
+  try {
+    const raw = readFileSync(new URL('./src/data/build_metadata.json', import.meta.url), 'utf8')
+    const ids = Object.keys((JSON.parse(raw) as { countries?: Record<string, unknown> }).countries ?? {})
+    return Object.fromEntries(ids.map((id) => [id, readCoverageMap(id)]))
+  } catch {
+    return {}
+  }
+}
+const COUNTRY_COVERAGE_PCT = readCountryCoverage()
 
 // IN-3: Keep build-only pipeline inputs out of the deployed site.
 //
@@ -296,7 +306,7 @@ export default defineConfig({
     __BUILD_DATE__: JSON.stringify(BUILD_DATE),
     // PO-2: compact per-metric coverage map inlined (see readCoverageMap).
     __COVERAGE_PCT__: JSON.stringify(COVERAGE_PCT),
-    __COVERAGE_PCT_SE__: JSON.stringify(COVERAGE_PCT_SE),
+    __COUNTRY_COVERAGE_PCT__: JSON.stringify(COUNTRY_COVERAGE_PCT),
   },
   build: {
     assetsInlineLimit: 0, // Never inline data files — always emit as hashed assets

@@ -2,6 +2,7 @@ import { getCoveragePct, type NeighborhoodProperties } from './metrics.ts';
 import { getQualityBands } from './qualityBands.ts';
 import { applyQualityScale, scaleUsesFixedBands } from './qualityScale.ts';
 import { countryOfId, type CountryId } from './areaId.ts';
+import { HOME_COUNTRY, forCountry } from './countries.ts';
 
 /**
  * Computes a composite Quality Index (0–100) for each neighborhood.
@@ -73,9 +74,10 @@ export interface QualityFactor {
   defaultWeight: number;
   /** Property key(s) on NeighborhoodProperties to read */
   properties: (keyof NeighborhoodProperties)[];
-  /** Sweden's property for the same concept where SCB defines it differently (income
-   *  is ekonomisk standard in SEK, not Paavo's euros). Absent: Sweden reads `properties`. */
-  propertiesSe?: (keyof NeighborhoodProperties)[];
+  /** A country's property for the same concept where its publisher defines it
+   *  differently (Sweden's income is SCB's ekonomisk standard in SEK, not Paavo's
+   *  euros). A country absent here reads `properties`. */
+  byCountry?: Partial<Record<CountryId, (keyof NeighborhoodProperties)[]>>;
   /**
    * DATA fact, not a preference: true when the raw column runs OPPOSITE to the
    * factor's own label — `water_proximity_m` is a distance while the label is
@@ -177,7 +179,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Tulotaso', en: 'Income', sv: 'Inkomst' },
     defaultWeight: 10,
     properties: ['hr_mtu'],
-    propertiesSe: ['economic_standard_median'],
+    byCountry: { se: ['economic_standard_median'] },
     invert: false,
     primary: true,
   },
@@ -248,7 +250,7 @@ export const QUALITY_FACTORS: QualityFactor[] = [
     label: { fi: 'Pienituloisuus', en: 'Low-income share', sv: 'Låginkomstandel' },
     defaultWeight: 0,
     properties: ['low_income_pct'],
-    propertiesSe: ['low_economic_standard_pct'],
+    byCountry: { se: ['low_economic_standard_pct'] },
     invert: false,
     primary: false,
   },
@@ -808,7 +810,7 @@ const NEUTRAL_SCORE = 50;
 
 /** The properties a factor reads for an area in `country`. */
 export function factorProperties(factor: QualityFactor, country: CountryId): (keyof NeighborhoodProperties)[] {
-  return country === 'se' && factor.propertiesSe ? factor.propertiesSe : factor.properties;
+  return forCountry(factor.byCountry, country, factor.properties);
 }
 
 /**
@@ -947,11 +949,11 @@ export function computeQualityIndices(
         const key = prop as string;
         if (out.has(key)) continue;
         const r = national?.get(key);
-        // Finland: a property absent from the artifact (a derived field) falls back to
-        // the loaded features' range. Sweden's artifact lists every property it has
-        // data for, so absence there means no data, and the factor drops out.
+        // HOME: a property absent from the artifact (a derived field) falls back to the
+        // loaded features' range. Another country's artifact lists every property it
+        // has data for, so absence there means no data, and the factor drops out.
         if (r) out.set(key, r);
-        else if (!national || country === 'fi') out.set(key, collectRange(own, prop));
+        else if (!national || country === HOME_COUNTRY) out.set(key, collectRange(own, prop));
       }
     }
     rangeCache.set(country, out);
@@ -1012,7 +1014,8 @@ export function computeQualityIndices(
       // "50.7" (see quality_display, which carries the finer value for the ramp).
       let raw = weighted / totalWeight;
       const fromCurve = calibration?.[country];
-      if (country !== 'fi' && fromCurve && calibration?.fi) raw = mapQuantile(raw, fromCurve, calibration.fi);
+      const home = calibration?.[HOME_COUNTRY];
+      if (country !== HOME_COUNTRY && fromCurve && home) raw = mapQuantile(raw, fromCurve, home);
       const composite = Math.round(raw * 10) / 10;
       (f.properties as NeighborhoodProperties).quality_index = composite;
       const dimScores: Record<string, number> = {};
@@ -1330,8 +1333,9 @@ function factorHasData(p: NeighborhoodProperties, factor: QualityFactor, country
 export function computeQualityCoverage(
   p: NeighborhoodProperties,
   weights?: QualityWeights,
-  /** Sweden's per-property ranges: a factor with none has no Swedish source at all. */
-  seRanges?: Map<string, MinMax>,
+  /** The area's own country's per-property ranges, outside HOME: a factor with none
+   *  has no source in that country at all. Ignored for HOME. */
+  ownRanges?: Map<string, MinMax>,
 ): QualityCoverage {
   const country = countryOfId(p.pno);
   // CF-1: audit the factors that actually contribute to the *displayed* score —
@@ -1345,11 +1349,12 @@ export function computeQualityCoverage(
   for (const f of active) {
     const dim = getFactorDimension(f.id);
     if (!byDim.has(dim)) byDim.set(dim, []);
-    // A Swedish gap is national when Sweden has no source for the factor at all.
-    const seMissing = country === 'se'
-      && !factorProperties(f, 'se').some((prop) => seRanges?.has(prop as string));
-    const nationalCoveragePct = seMissing ? 0 : country === 'se' ? null : factorNationalCoverage(f);
-    const nationallyThin = seMissing
+    // Outside HOME a gap is national when the country has no source for the factor at all.
+    const abroad = country !== HOME_COUNTRY;
+    const nationalMissing = abroad
+      && !factorProperties(f, country).some((prop) => ownRanges?.has(prop as string));
+    const nationalCoveragePct = nationalMissing ? 0 : abroad ? null : factorNationalCoverage(f);
+    const nationallyThin = nationalMissing
       || (nationalCoveragePct != null && nationalCoveragePct < FACTOR_THIN_COVERAGE_THRESHOLD);
     byDim.get(dim)!.push({
       id: f.id,
