@@ -308,7 +308,12 @@ const ASSETS_DIR = 'dist/assets';
 // FI/EN/SV switch, a Today button, and click-a-map-point-to-add with an
 // OpenStreetMap Nominatim reverse lookup for the point's name. Measured
 // 44,596 → ~46,800 B, all of it in the UvPage- chunk /live/ never loads.)
-const LIVE_BUDGET = 49_000;
+// → 51,500 B (2026-11-03: beach water temperature — Forum Virium's Uiras
+// sensors, a recorded live layer (watertemp.ts) plus the panel's SVG history
+// chart with 7-day / 30-day / 2-year spans, hover and arrow-key readout and the
+// page clock drawn on it (WaterChart.tsx). Measured 46,929 → 49,623 B, ~2.7 kB,
+// the whole of it this feed. Headroom restored to ~1.9 kB.)
+const LIVE_BUDGET = 51_500;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);
 

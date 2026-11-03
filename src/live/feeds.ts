@@ -243,6 +243,13 @@ export const FEED_GROUPS: FeedGroup[] = [
       // measures rather than models, exactly as wind does. OFF BY DEFAULT, the
       // same cost decision the other weather feeds make.
       { id: 'sea_level', labelKey: 'live.feed.sea_level', status: 'live', coverage: 'coastal', time: 'archive', defaultOn: false },
+      // Water temperature at Helsinki-region swimming beaches, from Forum Virium's
+      // Uiras sensors (watertemp.ts) — the panel carries each sensor's published
+      // week, month and two years as a chart. 'urban': the network is Helsinki,
+      // Espoo and Vantaa. 'recorded': the source publishes the latest reading per
+      // sensor and no past to ask for at an instant, so a scrub replays what this
+      // session received. OFF BY DEFAULT like the other weather feeds.
+      { id: 'water_temp', labelKey: 'live.feed.water_temp', status: 'live', coverage: 'urban', time: 'recorded', defaultOn: false },
       // The first feed here whose data is EVENTS rather than the state of a
       // station, which changes what the clock asks it for: not "what was the
       // value at T" but "what struck between T-30min and T". lightning.ts

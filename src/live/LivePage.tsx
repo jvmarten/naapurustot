@@ -151,6 +151,17 @@ import {
   type SealevelTimeline,
   type SealevelTimelineSample,
 } from './sealevel';
+import {
+  fetchWaterLatest,
+  formatWaterC,
+  mergeWater,
+  sampleWater,
+  waterRange,
+  WATER_POLL_MS,
+  WATER_TOLERANCE_MS,
+  type WaterReading,
+  type WaterTimeline,
+} from './watertemp';
 import { deepenAlpha255, nightAlpha } from './shade';
 import {
   datesCovering,
@@ -616,6 +627,7 @@ const EMPTY_AIR_QUALITY: AirQuality[] = [];
 const EMPTY_CLOUDS: CloudStation[] = [];
 const EMPTY_WINDS: WindTimelineSample[] = [];
 const EMPTY_SEALEVEL: SealevelTimelineSample[] = [];
+const EMPTY_WATER: WaterReading[] = [];
 const EMPTY_STRIKES: Strike[] = [];
 const EMPTY_SCHEDULED: ScheduledTrain[] = [];
 const EMPTY_INCIDENTS: Incident[] = [];
@@ -1893,6 +1905,55 @@ function paintSealevel(
 }
 
 /**
+ * Beach water temperature: a small filled dot at the probe with its °C beside it.
+ *
+ * Deep blue rather than sea level's cyan, so a shore with both layers on reads as
+ * two things; haloed and collision-suppressed like every label here — on a clash
+ * the dot stays and the text is dropped, the rule the trains set.
+ */
+const WATER = {
+  dark: { ink: 'rgba(125, 211, 252, 0.97)', halo: 'rgba(8, 15, 40, 0.9)' },
+  light: { ink: 'rgba(3, 105, 161, 0.97)', halo: 'rgba(255, 255, 255, 0.92)' },
+} as const;
+
+function paintWater(
+  ctx: CanvasRenderingContext2D,
+  map: MaplibreMap,
+  samples: WaterReading[],
+  theme: 'dark' | 'light',
+  width: number,
+  height: number,
+): void {
+  if (samples.length === 0) return;
+  const { ink, halo } = WATER[theme];
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 12px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = ink;
+  ctx.strokeStyle = halo;
+  const placed: number[][] = [];
+  for (const s of samples) {
+    const p = map.project([s.lon, s.lat]);
+    if (p.x < -40 || p.y < -20 || p.x > width + 40 || p.y > height + 20) continue;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fill();
+
+    const text = `${formatWaterC(s.celsius)}°`;
+    const w = ctx.measureText(text).width;
+    const box = [p.x + 5, p.y - 8, p.x + 9 + w, p.y + 8];
+    if (placed.some((o) => box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1])) continue;
+    placed.push(box);
+    ctx.lineWidth = 3;
+    ctx.strokeText(text, p.x + 7, p.y);
+    ctx.fillText(text, p.x + 7, p.y);
+  }
+  ctx.restore();
+}
+
+/**
  * A diamond, which is what a position derived from a timetable gets.
  *
  * The measured feed owns the circle in both its states — filled for a fresh fix,
@@ -2365,6 +2426,9 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   // AND an N2000 height AND a temperature from ONE instant, and the scalar store
   // above carries one value and a forecast flag it cannot express (see sealevel.ts).
   const sealevelTimelineRef = useRef<SealevelTimeline>(createSealevelTimeline());
+  // Beach water temperature: what this session's polls received, per sensor. Not
+  // cleared on a day change — it is a recording, like the ships' (watertemp.ts).
+  const waterTimelineRef = useRef<WaterTimeline>(new Map());
   const [timelineVersion, setTimelineVersion] = useState(0);
   const bumpTimeline = useCallback(() => setTimelineVersion((v) => v + 1), []);
   /**
@@ -2628,6 +2692,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   // Sea level's day and poll, split exactly as wind's are and for the same reason.
   const [sealevelDay, setSealevelDay] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [sealevelPollFailed, setSealevelPollFailed] = useState(false);
+  // Beach sensors: one live poll and nothing else, so one tri-state.
+  const [waterStatus, setWaterStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   /**
    * The REFINEMENT poll's failure, which is not the day's.
    *
@@ -2697,6 +2763,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const cloudsOn = enabled.has('clouds');
   const windOn = enabled.has('wind');
   const sealevelOn = enabled.has('sea_level');
+  const waterOn = enabled.has('water_temp');
   const lightningOn = enabled.has('lightning');
   const radarOn = enabled.has('radar');
 
@@ -2912,6 +2979,23 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         : EMPTY_SEALEVEL,
     [sealevelOn, whenMs, timelineVersion],
   );
+
+  // Each beach sensor's received reading nearest the clock, within an hour.
+  const waterAt = useMemo(
+    () =>
+      waterOn ? sampleWater(waterTimelineRef.current, whenMs, WATER_TOLERANCE_MS) : EMPTY_WATER,
+    [waterOn, whenMs, timelineVersion],
+  );
+  const waterSpread = useMemo(() => {
+    if (waterAt.length === 0) return null;
+    let low = Infinity;
+    let high = -Infinity;
+    for (const s of waterAt) {
+      low = Math.min(low, s.celsius);
+      high = Math.max(high, s.celsius);
+    }
+    return { low, high };
+  }, [waterAt]);
 
   /**
    * The flashes inside the trailing window ending at the clock.
@@ -3150,6 +3234,11 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       );
       return at ? { kind: 'sea_level', item: at } : null;
     }
+    // A sensor keeps its identity (its id) and follows the clock like the gauges.
+    if (selection.kind === 'water_temp') {
+      const at = waterAt.find((s) => s.id === selection.item.id);
+      return at ? { kind: 'water_temp', item: at } : null;
+    }
     // A FLASH DOES NOT MOVE OR CHANGE, so unlike the stations above there is
     // nothing to re-resolve — but it can leave the window, and then the mark it
     // describes is no longer on the map. Scrubbing away from a strike closes its
@@ -3255,6 +3344,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     cloudsAt,
     windAt,
     sealevelAt,
+    waterAt,
     whenMs,
     live,
     trainsOn,
@@ -3732,6 +3822,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     // they seldom meet a temperature label; when they do, last-drawn wins, which
     // is honest at the pixel level (see paintObservations).
     paintSealevel(ctx, map, sealevelAt, theme, width, height);
+    paintWater(ctx, map, waterAt, theme, width, height);
 
     // Above everything, because it is the answer to a question the reader asked.
     if (selectionRef.current) {
@@ -3770,6 +3861,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     cloudsAt,
     windAt,
     sealevelAt,
+    waterAt,
     strikesAt,
     incidentsAt,
     trainSnapshot,
@@ -5029,6 +5121,28 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * without re-downloading it a dozen times an hour. Same future-clock shape as
    * wind: `at: null` ahead of now keeps the loaded day rather than discarding it.
    */
+  /**
+   * Beach water temperature: always the live file, because the source keeps no
+   * past a browser can ask for at an instant (watertemp.ts). Every poll is kept,
+   * so a scrub inside this session's own window finds what was received then.
+   */
+  useFeedPoll<WaterReading[]>({
+    enabled: waterOn,
+    fetcher: fetchWaterLatest,
+    intervalMs: WATER_POLL_MS,
+    onData: useCallback(
+      (list: WaterReading[]) => {
+        mergeWater(waterTimelineRef.current, list);
+        setWaterStatus('ready');
+        bumpTimeline();
+        scheduleDraw();
+      },
+      [bumpTimeline, scheduleDraw],
+    ),
+    onError: useCallback(() => setWaterStatus('failed'), []),
+    onClear: useCallback(() => setWaterStatus('loading'), []),
+  });
+
   useFeedPoll<SealevelReading[]>({
     enabled: sealevelOn,
     at: future ? null : archiveAt,
@@ -5200,6 +5314,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
           clouds: cloudsAt,
           wind: windAt,
           seaLevel: sealevelAt,
+          water: waterAt,
           lightning: strikesAt,
         },
         (lon, lat) => map.project([lon, lat]),
@@ -5214,6 +5329,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       if (hit.kind === 'clouds') return { kind: 'clouds', item: cloudsAt[hit.index] };
       if (hit.kind === 'wind') return { kind: 'wind', item: windAt[hit.index] };
       if (hit.kind === 'sea_level') return { kind: 'sea_level', item: sealevelAt[hit.index] };
+      if (hit.kind === 'water_temp') return { kind: 'water_temp', item: waterAt[hit.index] };
       if (hit.kind === 'lightning') return { kind: 'lightning', item: strikesAt[hit.index] };
       return { kind: 'air_quality', item: airQualityAt[hit.index] };
     },
@@ -5227,6 +5343,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
       cloudsAt,
       windAt,
       sealevelAt,
+      waterAt,
       strikesAt,
       incidentsAt,
       trainSnapshot,
@@ -5428,6 +5545,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     cloudsOn ||
     windOn ||
     sealevelOn ||
+    waterOn ||
     lightningOn ||
     radarOn ||
     uvOn ||
@@ -5459,6 +5577,9 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
     (cloudsOn && cloudDay === 'failed') ||
     (windOn && windDay === 'failed') ||
     (sealevelOn && sealevelDay === 'failed') ||
+    // Live only, like the ships: scrubbed, an empty shore is a gap in this
+    // session's recording, not a failure.
+    (waterOn && live && waterStatus === 'failed') ||
     (lightningOn && lightningDay === 'failed') ||
     // `unpublished` is deliberately NOT here. It is a statement about the
     // source's schedule, not about ours failing to reach it, and an amber chip
@@ -6056,6 +6177,35 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                 </p>
               )}
 
+              {/* Beach water: a recording, so a scrub outside what this session
+                  received says so and names the window it does hold. */}
+              {waterOn && (
+                live && waterStatus === 'failed' ? (
+                  <p className="text-amber-700 dark:text-amber-400">{t('live.water.failed')}</p>
+                ) : waterStatus === 'loading' && waterAt.length === 0 ? (
+                  <p className="text-surface-600 dark:text-surface-300">{t('live.water.loading')}</p>
+                ) : waterSpread === null ? (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {(() => {
+                      const held = waterRange(waterTimelineRef.current);
+                      return live || !held
+                        ? t('live.water.none')
+                        : t('live.water.no_record')
+                            .replace('{from}', clockTime(held.from))
+                            .replace('{to}', clockTime(held.to));
+                    })()}
+                  </p>
+                ) : (
+                  <p className="text-surface-600 dark:text-surface-300">
+                    {t('live.water.count')
+                      .replace('{n}', String(waterAt.length))
+                      .replace('{low}', formatWaterC(waterSpread.low))
+                      .replace('{high}', formatWaterC(waterSpread.high))}
+                    {sampleSpan(waterAt)}
+                  </p>
+                )
+              )}
+
               {/* THE UV SENTENCE NAMES THE MODEL EVERY TIME, in the one place
                   with room to say it properly. The bar's readout can only be a
                   number in a coloured ink beside six exact astronomical ones, so
@@ -6154,7 +6304,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
               {/* The markers are clickable and nothing else on screen says so —
                   they are canvas pixels, with no hover affordance beyond the
                   cursor. One line, and only while a clickable feed is on. */}
-              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || cloudsOn || windOn || sealevelOn || lightningOn) &&
+              {(trainsOn || shipsOn || incidentsOn || observationsOn || airQualityOn || cloudsOn || windOn || sealevelOn || waterOn || lightningOn) &&
                 !shownSelection && (
                 <p className="pt-0.5 text-surface-500 dark:text-surface-400">
                   {t('live.detail.hint')}

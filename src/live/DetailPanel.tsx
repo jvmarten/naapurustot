@@ -6,6 +6,8 @@ import { formatOktas, isObscured, oktaKey, type CloudStation } from './clouds';
 import type { Observation } from './observations';
 import { windCompassKey, type WindTimelineSample } from './wind';
 import { formatSealevelCm, type SealevelTimelineSample } from './sealevel';
+import { formatWaterC, type WaterReading } from './watertemp';
+import { WaterChart } from './WaterChart';
 import type { Incident } from './incidents';
 import type { Strike } from './lightning';
 import type { Train } from './trains';
@@ -57,6 +59,7 @@ export type Selection =
   | { kind: 'clouds'; item: CloudStation }
   | { kind: 'wind'; item: WindTimelineSample }
   | { kind: 'sea_level'; item: SealevelTimelineSample }
+  | { kind: 'water_temp'; item: WaterReading }
   | { kind: 'incident'; item: Incident }
   | { kind: 'lightning'; item: Strike };
 
@@ -432,6 +435,31 @@ const SealevelBody: React.FC<{ sample: SealevelTimelineSample }> = ({ sample }) 
 };
 
 /**
+ * A beach sensor, as of the reading under the clock, with its published history.
+ *
+ * The headline is the probe's water temperature; the enclosure's own temperature
+ * sits under it as published, because a probe lifted out for the winter keeps
+ * reporting and that second number is how a reader can tell (see watertemp.ts).
+ */
+const WaterBody: React.FC<{ sample: WaterReading; when: Date }> = ({ sample, when }) => (
+  <div className="space-y-1">
+    <Row label={t('live.detail.water_temp')}>{formatWaterC(sample.celsius)} °C</Row>
+    {sample.district && <Row label={t('live.detail.district')}>{sample.district}</Row>}
+    {sample.depth !== null && (
+      <Row label={t('live.detail.probe_depth')}>{sample.depth.toFixed(1)} m</Row>
+    )}
+    {sample.enclosure !== null && (
+      <Row label={t('live.detail.enclosure_temp')}>{formatWaterC(sample.enclosure)} °C</Row>
+    )}
+    <Row label={t('live.detail.measured_at')}>{clockTime(sample.at)}</Row>
+    <WaterChart id={sample.id} when={when.getTime()} />
+    <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
+      {t('live.detail.source_uiras')}
+    </p>
+  </div>
+);
+
+/**
  * A vessel, as of the fix under the clock: what AIS measured, joined to the
  * register's name and type.
  *
@@ -517,6 +545,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
               ? t('live.detail.wind_station')
               : selection.kind === 'sea_level'
                 ? t('live.detail.sea_level_station')
+                : selection.kind === 'water_temp'
+                ? selection.item.name
                 : selection.kind === 'lightning'
                   ? t('live.detail.strike')
                   : t('live.detail.announcement');
@@ -556,6 +586,8 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({
       {selection.kind === 'wind' && <WindBody wind={selection.item} />}
 
       {selection.kind === 'sea_level' && <SealevelBody sample={selection.item} />}
+
+      {selection.kind === 'water_temp' && <WaterBody sample={selection.item} when={when} />}
 
       {selection.kind === 'air_quality' && (
         <div className="space-y-1">
