@@ -161,18 +161,19 @@ export interface LayerConfig {
   colors: string[];
   /** Breakpoint values for the color scale, aligned with `colors` */
   stops: number[];
-  /** Sweden's breakpoints for a key both countries publish under definitions that do not
-   *  compare (different registers, counting rules or bases), from Sweden's own DeSO
-   *  distribution (p2…p98). Its presence is the "not comparable" flag: a Sweden-only map
-   *  uses these stops (`layerForCountry`), and a map showing both countries colours each
-   *  feature on its own country's scale (`buildFillColorExpression`) and says so in the
-   *  legend. Metrics that do compare share Finland's stops and carry no `stopsSe`. */
-  stopsSe?: number[];
-  /** Label for a Sweden-only map, where the layer's Swedish source measures something
-   *  close to but not the same as Finland's (see `crossCountryNoteKey`). */
-  labelKeySe?: string;
-  /** Shown under the legend whenever Sweden is on the map: the layer joins two
-   *  countries' related but differently defined measures on one scale, and says so. */
+  /** Per-country overrides, for a country other than HOME (countries.ts).
+   *  - `stops`: that country's own breakpoints for a key both countries publish under
+   *    definitions that do not compare (different registers, counting rules or bases),
+   *    from its own area distribution (p2…p98). Its presence is the "not comparable"
+   *    flag: a one-country map of it uses these stops (`layerForCountry`), and a map
+   *    showing several colours each feature on its own country's scale
+   *    (`buildFillColorExpression`) and says so in the legend. Comparable metrics share
+   *    HOME's stops and carry none.
+   *  - `labelKey`: the label on a one-country map, where that country's source measures
+   *    something close to but not the same as HOME's (see `crossCountryNoteKey`). */
+  byCountry?: Partial<Record<CountryId, { stops?: number[]; labelKey?: string }>>;
+  /** Shown under the legend whenever a country other than HOME is on the map: the
+   *  layer joins countries' related but differently defined measures on one scale. */
   crossCountryNoteKey?: string;
   /** Format a raw value for display in tooltips, legends, and panels */
   format: (v: number) => string;
@@ -206,7 +207,7 @@ export interface LayerConfig {
 }
 
 import { getLang } from './i18n';
-import type { CountryId } from './areaId';
+import { HOME_COUNTRY, PREFIXED_COUNTRIES, countryDef, forCountry, type CountryId } from './countries.ts';
 
 // Cache Intl.NumberFormat per locale to avoid recreating on every format call.
 // These format functions run on the tooltip hot path (~60Hz mousemove).
@@ -396,7 +397,7 @@ export const LAYERS: LayerConfig[] = [
     // Unemployed per labour force in both, but Finland's register counts every unemployed
     // jobseeker and SCB's far fewer (national 10.9 % vs 5.4 %), so each its own stops.
     stops: [3, 5, 7, 8.5, 10, 11.5, 13, 15, 18, 25],
-    stopsSe: [1, 2, 2.5, 3, 3.5, 4, 5, 7, 10, 20],
+    byCountry: { se: { stops: [1, 2, 2.5, 3, 3.5, 4, 5, 7, 10, 20] } },
     format: pct,
     higherIsBetter: false,
   },
@@ -407,7 +408,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#1a1a2e', '#16213e', '#0f3460', '#533483', '#7b2d8e', '#e94560', '#f38375', '#f8c291'],
     stops: [10, 20, 30, 40, 50, 60, 70, 80],
-    stopsSe: [24, 32, 37, 42, 49, 57, 68, 82],
+    byCountry: { se: { stops: [24, 32, 37, 42, 49, 57, 68, 82] } },
     format: pct,
   },
   // Foreign-language postal layer = a time series. The scalar property is the latest
@@ -422,7 +423,7 @@ export const LAYERS: LayerConfig[] = [
   {
     id: 'foreign_lang',
     labelKey: 'layer.foreign_lang',
-    labelKeySe: 'layer.foreign_background',
+    byCountry: { se: { labelKey: 'layer.foreign_background' } },
     crossCountryNoteKey: 'note.foreign_cross_country',
     property: 'foreign_share_pct',
     unit: '%',
@@ -492,7 +493,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#fff5eb', '#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#8c2d04'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
-    stopsSe: [8, 40, 58, 70, 80, 90, 95, 99],
+    byCountry: { se: { stops: [8, 40, 58, 70, 80, 90, 95, 99] } },
     format: pct,
   },
   {
@@ -502,7 +503,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [10, 20, 30, 40, 50, 60, 70, 85],
-    stopsSe: [0.5, 2.5, 7, 15, 26, 40, 60, 95],
+    byCountry: { se: { stops: [0.5, 2.5, 7, 15, 26, 40, 60, 95] } },
     format: pct,
   },
   {
@@ -532,7 +533,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcfd', '#e5f5f9', '#ccece6', '#99d8c9', '#66c2a4', '#41ae76', '#238b45', '#005824'],
     stops: [0, 5, 10, 20, 30, 40, 55, 75],
-    stopsSe: [0, 3, 27, 55, 75, 88, 95, 99],
+    byCountry: { se: { stops: [0, 3, 27, 55, 75, 88, 95, 99] } },
     format: pct,
   },
   {
@@ -611,7 +612,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [20, 35, 50, 65, 80, 100, 130, 170],
-    stopsSe: [65, 78, 94, 104, 114, 128, 148, 245],
+    byCountry: { se: { stops: [65, 78, 94, 104, 114, 128, 148, 245] } },
     format: perThousand,
     higherIsBetter: false,
   },
@@ -626,7 +627,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [3, 4.5, 5.5, 6.5, 7.5, 9, 11, 13],
-    stopsSe: [4, 5.5, 6.5, 7.5, 8.5, 9.5, 11, 14],
+    byCountry: { se: { stops: [4, 5.5, 6.5, 7.5, 8.5, 9.5, 11, 14] } },
     format: perThousand,
     higherIsBetter: false,
   },
@@ -639,7 +640,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [14, 19, 24, 30, 36, 44, 55, 70],
-    stopsSe: [32, 38, 45, 52, 58, 64, 78, 160],
+    byCountry: { se: { stops: [32, 38, 45, 52, 58, 64, 78, 160] } },
     format: perThousand,
     higherIsBetter: false,
   },
@@ -810,7 +811,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '',
     colors: ['#f7f4f9', '#e7e1ef', '#d4b9da', '#c994c7', '#df65b0', '#e7298a', '#ce1256', '#91003f'],
     stops: [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.85],
-    stopsSe: [0.56, 0.66, 0.69, 0.71, 0.73, 0.74, 0.76, 0.8],
+    byCountry: { se: { stops: [0.56, 0.66, 0.69, 0.71, 0.73, 0.74, 0.76, 0.8] } },
     format: gini,
   },
   // Political lean — vote-weighted left–right position (0 = left … 100 = right),
@@ -970,7 +971,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf5', '#e5f5e0', '#c7e9c0', '#a1d99b', '#74c476', '#41ab5d', '#238b45', '#005a32'],
     stops: [2, 4, 6, 8, 10, 14, 18, 25],
-    stopsSe: [3, 4.5, 5.5, 6, 7, 8, 9.5, 14],
+    byCountry: { se: { stops: [3, 4.5, 5.5, 6, 7, 8, 9.5, 14] } },
     format: pct,
   },
   {
@@ -980,7 +981,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '%',
     colors: ['#f7fcf0', '#e0f3db', '#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'],
     stops: [5, 10, 15, 20, 25, 30, 35, 45],
-    stopsSe: [11, 19, 24, 27, 31, 35, 41, 55],
+    byCountry: { se: { stops: [11, 19, 24, 27, 31, 35, 41, 55] } },
     format: pct,
   },
   {
@@ -1124,7 +1125,7 @@ export const LAYERS: LayerConfig[] = [
     unit: '/1000',
     colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
     stops: [0.5, 1, 2, 3, 5, 8, 12, 20],
-    stopsSe: [0.6, 0.75, 0.9, 1, 1.1, 1.2, 1.45, 1.8],
+    byCountry: { se: { stops: [0.6, 0.75, 0.9, 1, 1.1, 1.2, 1.45, 1.8] } },
     format: perThousand,
     higherIsBetter: false,
   },
@@ -1388,11 +1389,14 @@ function runsWarmToCool(colors: string[]): boolean {
 // O(1) layer lookup instead of O(n) Array.find() on every call.
 // getLayerById is called on every hover (tooltip), layer switch, and map paint update.
 /**
- * Layers Sweden has data for (SCB, DeSO 2025). Every other layer is Finland's alone.
- * SE_ONLY_LAYERS are Sweden's alone; the rest share a property key
- * with Finland but are defined by SCB (see data_sources.json countries.se).
+ * Which layers each country other than HOME has. HOME (Finland) has every layer except
+ * the other countries' own (`ONLY_LAYERS`); another country has exactly the layers in
+ * `COUNTRY_LAYERS`, its own plus the shared keys its publisher defines (data_sources.json
+ * `countries.<id>`). A new country adds one entry to each.
+ *
+ * Sweden (SCB, DeSO 2025): its own layers first.
  */
-export const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
+const SE_ONLY_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'economic_standard', 'low_economic_standard', 'foreign_background',
   'party_se_s', 'party_se_m', 'party_se_sd', 'party_se_v', 'party_se_c', 'party_se_kd',
   'party_se_mp', 'party_se_l', 'house_price_se', 'house_price_change_se', 'rent_se', 'new_buildings_se',
@@ -1411,7 +1415,7 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'ev_charging_density', 'tree_canopy', 'noise_pollution', 'light_pollution',
   'construction_activity', 'population_projection', 'crime_index_change', 'political_lean',
   'transit_reachability', 'employment_rate', 'foreign_lang',
-  // Not comparable (stopsSe): different registers (unemployment), counting rules (Brå's
+  // Not comparable (own `byCountry` stops): different registers (unemployment), counting rules (Brå's
   // crime, Trafikanalys's injury-only accidents), bases (households vs residents for
   // tenure and house type; children under 25 vs 18; education 25–65 vs 18+) or party
   // systems. Each country is coloured on its own scale, including when both are shown.
@@ -1422,19 +1426,40 @@ const SE_LAYERS: ReadonlySet<LayerId> = new Set<LayerId>([
   'quality_index',
 ]);
 
-/** Whether a layer has data in `country`; with no country (both on the map), every layer. */
+/** Each country's own layers, which HOME does not have. */
+export const ONLY_LAYERS: Partial<Record<CountryId, ReadonlySet<LayerId>>> = { se: SE_ONLY_LAYERS };
+/** Every layer a country other than HOME has data for. */
+export const COUNTRY_LAYERS: Partial<Record<CountryId, ReadonlySet<LayerId>>> = { se: SE_LAYERS };
+
+/** Whether a layer has data in `country`; with no country (several on the map), every layer. */
 export function layerInCountry(id: LayerId, country: CountryId | null): boolean {
-  if (country === 'se') return SE_LAYERS.has(id);
-  if (country === 'fi') return !SE_ONLY_LAYERS.has(id);
-  return true;
+  if (!country) return true;
+  if (country === HOME_COUNTRY) return !Object.values(ONLY_LAYERS).some((set) => set.has(id));
+  return COUNTRY_LAYERS[country]?.has(id) ?? false;
 }
 
-/** The layer as drawn for a one-country map: Sweden's stops and label where it has its own. */
+/** A country's own stops for a not-comparable layer, else the layer's (HOME's). */
+export function countryStops(layer: LayerConfig, country: CountryId | null | undefined): number[] {
+  return forCountry(layer.byCountry, country, undefined)?.stops ?? layer.stops;
+}
+
+/** The layer's label on a one-country map of `country`. */
+export function countryLabelKey(layer: LayerConfig, country: CountryId | null | undefined): string {
+  return forCountry(layer.byCountry, country, undefined)?.labelKey ?? layer.labelKey;
+}
+
+/** Countries that colour this layer on their own scale (it is not comparable there). */
+export function ownScaleCountries(layer: LayerConfig): CountryId[] {
+  return PREFIXED_COUNTRIES.filter((c) => layer.byCountry?.[c.id]?.stops).map((c) => c.id);
+}
+
+/** The layer as drawn for a one-country map: that country's stops and label where it has its own. */
 export function layerForCountry(layer: LayerConfig, country: CountryId | null): LayerConfig {
-  if (country !== 'se' || !(layer.stopsSe || layer.labelKeySe)) return layer;
-  // Sweden's stops become THE stops, so the per-country branch has nothing left to do
-  // (and a region rescale of `stops` is not undone by a stale `stopsSe`).
-  return { ...layer, stops: layer.stopsSe ?? layer.stops, stopsSe: undefined, labelKey: layer.labelKeySe ?? layer.labelKey };
+  const own = forCountry(layer.byCountry, country, undefined);
+  if (!own) return layer;
+  // The country's stops become THE stops, so the per-country branch has nothing left to
+  // do (and a region rescale of `stops` is not undone by stale per-country stops).
+  return { ...layer, stops: own.stops ?? layer.stops, labelKey: own.labelKey ?? layer.labelKey, byCountry: undefined };
 }
 
 /** The layer a view of `country` opens on when the current one has no data there. */
@@ -1489,11 +1514,11 @@ export function getLayerById(id: LayerId): LayerConfig {
   return result;
 }
 
-/** Map a numeric value to a color from the layer's scale — Sweden's own for a Swedish
- *  area of a not-comparable layer (`stopsSe`). Returns gray for null/undefined. */
-export function getColorForValue(layer: LayerConfig, value: number | null | undefined, country: CountryId = 'fi'): string {
+/** Map a numeric value to a color from the layer's scale — the area's country's own for
+ *  a not-comparable layer (`byCountry` stops). Returns gray for null/undefined. */
+export function getColorForValue(layer: LayerConfig, value: number | null | undefined, country: CountryId = HOME_COUNTRY): string {
   if (value == null) return '#d1d5db';
-  const stops = country === 'se' && layer.stopsSe ? layer.stopsSe : layer.stops;
+  const stops = countryStops(layer, country);
   for (let i = stops.length - 1; i >= 0; i--) {
     if (value >= stops[i]) return layer.colors[i];
   }
@@ -1682,12 +1707,15 @@ export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: 
     for (let i = 0; i < stops.length; i++) r.push(stops[i], layer.colors[i]);
     return r;
   };
-  // A not-comparable layer (stopsSe) colours every feature on its own country's scale,
-  // so a map showing both never reads a definitional gap as a difference between them.
-  // Every feature carries its region id in `city`, and Sweden's begin `se_`. Grid cells
-  // (propertyOverride) are Finland's alone.
-  const interpolation = layer.stopsSe && !propertyOverride
-    ? ['case', ['==', ['slice', ['to-string', ['get', 'city']], 0, 3], 'se_'], ramp(layer.stopsSe), ramp(layer.stops)]
+  // A not-comparable layer colours every feature on its own country's scale, so a map
+  // showing several never reads a definitional gap as a difference between them. Every
+  // feature carries its region id in `city`, prefixed outside HOME (countries.ts). Grid
+  // cells (propertyOverride) are HOME's alone.
+  const own = propertyOverride ? [] : ownScaleCountries(layer);
+  const interpolation = own.length
+    ? ['case', ...own.flatMap((c) => [
+        ['==', ['slice', ['to-string', ['get', 'city']], 0, 3], countryDef(c).regionPrefix], ramp(countryStops(layer, c)),
+      ]), ramp(layer.stops)]
     : ramp(layer.stops);
   // Show gray for features where the property is null/missing/non-numeric.
   // The typeof check prevents non-numeric strings (e.g. "N/A") from being

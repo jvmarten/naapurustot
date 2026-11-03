@@ -13,7 +13,9 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MAX_ZOOM, MAP_MIN_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import type { CountryId } from '../utils/areaId';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/basemap';
+import { COUNTRY_IDS } from '../utils/countries';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
+import { applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/countryBorders';
 
 /**
  * Compact dropdown for choosing a data layer on one side of the split view.
@@ -156,8 +158,6 @@ const LINE_LAYER = 'neighborhoods-line';
 function beforeLabels(map: maplibregl.Map): string | undefined {
   return baseInsertBeforeId(map);
 }
-
-const BOTH_COUNTRIES: readonly CountryId[] = ['fi', 'se'];
 
 interface SplitMapViewProps {
   data: FeatureCollection | null;
@@ -451,7 +451,7 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
   metroAverages,
   regionAverages,
   onSelectNeighborhood,
-  dataCountries = BOTH_COUNTRIES,
+  dataCountries = COUNTRY_IDS,
 }) => {
   useI18nVersion();
   // CF-2: prefer the App-level effective (region-rescaled / colorblind) config so the

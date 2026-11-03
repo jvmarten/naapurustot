@@ -1,26 +1,22 @@
 /**
  * Statistical-area identifiers, for every country the map covers.
  *
- * An area id is the publisher's own code, stored bare:
- *   - Finland: a 5-digit Paavo postal code, e.g. `00100`.
- *   - Sweden:  a DeSO code (SCB), e.g. `0180C1090` — 4-digit municipality, a
- *     letter A–C, 4 digits.
+ * An area id is the publisher's own code, stored bare — Finland's 5-digit Paavo postal
+ * code (`00100`), Sweden's SCB DeSO code (`0180C1090`). The formats live in
+ * `countries.ts` (`CountryDef.area`) and are disjoint, so an id names its country
+ * without a prefix and every Finnish URL, favourite, note and indexed page stays valid.
  *
- * The formats are disjoint, so an id names its country without a prefix and every
- * Finnish URL, favourite, note and indexed page stays valid. A new country must
- * bring a pattern that cannot match any existing one (see docs/SWEDEN_EXPANSION.md).
- *
- * This is the single place that knows the formats: URL params, slugs, localStorage
- * and the server's sync validation all go through it (the server keeps a copy).
+ * This is the single place URL params, slugs, localStorage and the server's sync
+ * validation go through (the server keeps a copy of the patterns).
  */
 
-export type CountryId = 'fi' | 'se';
+import { COUNTRIES, HOME_COUNTRY, areaCountry, regionCountry, type CountryId } from './countries.ts';
 
-const AREA_ID_RE = /^(?:\d{5}|\d{4}[A-C]\d{4})$/;
+export type { CountryId } from './countries.ts';
 
 /** True when `s` is a well-formed area id in canonical form. */
 export function isAreaId(s: string): boolean {
-  return AREA_ID_RE.test(s);
+  return COUNTRIES.some((c) => c.area.test(s));
 }
 
 /**
@@ -34,14 +30,14 @@ export function normalizeAreaId(s: string): string | null {
 
 /** Country an area id belongs to. Only meaningful for ids that pass `isAreaId`. */
 export function countryOf(id: string): CountryId {
-  return id.length === 5 ? 'fi' : 'se';
+  return areaCountry(id) ?? HOME_COUNTRY;
 }
 
 /**
  * Country of any feature id on the map: an area id, or a region id (the all-country
- * view's region features carry their region id as `pno`; Swedish ones start `se_`).
+ * view's region features carry their region id as `pno`, prefixed outside HOME).
  */
 export function countryOfId(id: unknown): CountryId {
   const s = String(id ?? '');
-  return s.startsWith('se_') || (s.length === 9 && isAreaId(s)) ? 'se' : 'fi';
+  return areaCountry(s) ?? regionCountry(s);
 }

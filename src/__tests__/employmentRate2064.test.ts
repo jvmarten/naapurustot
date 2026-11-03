@@ -47,7 +47,7 @@ describe('employment rate on a 20–64 basis', () => {
 
   it('draws both countries on one scale', () => {
     const l = getLayerById('employment_rate');
-    expect(l.stopsSe).toBeUndefined();
+    expect(l.byCountry?.se?.stops).toBeUndefined();
     expect(layerForCountry(l, 'se')).toBe(l);
   });
 });

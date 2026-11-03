@@ -6,7 +6,8 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, useReducer, l
 // parse instead of serializing behind it. maplibre-* is excluded from the bundle-budget
 // gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
-import { REGION_IDS, DEFAULT_CITY, regionCountry, type RegionId } from './utils/regions';
+import { REGION_IDS, DEFAULT_CITY, type RegionId } from './utils/regions';
+import { COUNTRY_IDS, HOME_COUNTRY, regionCountry } from './utils/countries';
 import type { CountryId } from './utils/areaId';
 import { loadRegionData, loadAllData } from './utils/dataLoader';
 import { LayerSelector } from './components/LayerSelector';
@@ -449,16 +450,16 @@ const App: React.FC = () => {
   }, [cityFilter, displayed, countryScope]);
   // Countries whose data is on the map — their borders are the ones drawn strong.
   const dataCountries = useMemo<CountryId[]>(() => {
-    if (cityFilter === 'all') return countryScope ? [countryScope] : ['fi', 'se'];
+    if (cityFilter === 'all') return countryScope ? [countryScope] : [...COUNTRY_IDS];
     return [...new Set(displayed.map(regionCountry))];
   }, [cityFilter, countryScope, displayed]);
   useEffect(() => {
     if (viewCountry && !layerInCountry(activeLayer, viewCountry)) setActiveLayerRaw(DEFAULT_LAYER_BY_COUNTRY[viewCountry]);
   }, [viewCountry, activeLayer]);
-  // Every grid is Finland's (light pollution's 500 m cells, Helsinki's air and transit).
-  // A Swedish view has no shard to fetch, so it would fall back to the whole Finnish
-  // file (11 MB for light) only to clip every cell away; it draws its DeSOs instead.
-  const gridEnabled = !multiRegion && viewCountry !== 'se';
+  // Every grid is HOME's (light pollution's 500 m cells, Helsinki's air and transit).
+  // Another country's view has no shard to fetch, so it would fall back to the whole
+  // Finnish file (11 MB for light) only to clip every cell away; it draws its areas instead.
+  const gridEnabled = !multiRegion && (!viewCountry || viewCountry === HOME_COUNTRY);
   const { gridData: rawGridData, loading: gridLoading, error: gridError } = useGridData(activeLayer, cityFilter, gridEnabled);
   // Clip grid cells to the loaded region so a region-scoped view (e.g. Helsinki
   // Metro) doesn't leak grid cells from other regions (e.g. Turku, Tampere).

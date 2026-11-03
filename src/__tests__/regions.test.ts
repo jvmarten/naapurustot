@@ -12,8 +12,8 @@ import {
   ALL_FINLAND_VIEWPORT,
   getAllMunicipalityCodes,
   getRegionByMunicipality,
-  regionCountry,
 } from '../utils/regions';
+import { regionCountry } from '../utils/countries';
 
 describe('REGIONS configuration integrity', () => {
   it('has a non-empty set of regions', () => {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { t, useI18nVersion } from '../utils/i18n';
 import type { CountryId } from '../utils/areaId';
+import { HOME_COUNTRY } from '../utils/countries';
 
 export type ComparisonScope = 'all' | 'region';
 
@@ -18,7 +19,10 @@ export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React
   useI18nVersion();
   const isRegion = scope === 'region';
   const regionLabel = t(multi ? 'scope.region_multi' : 'scope.region');
-  const allLabel = t(country === 'se' ? 'scope.all_se' : 'scope.all');
+  // Another country's national view has its own wording, keyed by its id
+  // (scope.all_se, scope.national_hint_se).
+  const abroad = country && country !== HOME_COUNTRY ? `_${country}` : null;
+  const allLabel = t(abroad ? `scope.all${abroad}` : 'scope.all');
 
   return (
     <button
@@ -31,7 +35,7 @@ export const ComparisonScopeToggle: React.FC<ComparisonScopeToggleProps> = React
             ? 'bg-amber-500/90 hover:bg-amber-600/90 text-white'
             : 'md:bg-transparent md:hover:bg-surface-100/50 md:dark:hover:bg-surface-800/30 bg-surface-200/80 hover:bg-surface-300/80 text-surface-600 dark:bg-surface-700/60 dark:hover:bg-surface-600/60 dark:text-surface-300 md:dark:bg-transparent'
         }`}
-      title={disabled ? allLabel : isRegion ? (multi ? regionLabel : t('scope.active_hint')) : t(country === 'se' ? 'scope.national_hint_se' : multi ? 'scope.national_hint_multi' : 'scope.national_hint')}
+      title={disabled ? allLabel : isRegion ? (multi ? regionLabel : t('scope.active_hint')) : t(abroad ? `scope.national_hint${abroad}` : multi ? 'scope.national_hint_multi' : 'scope.national_hint')}
       aria-label={t('scope.label')}
     >
       <span className="flex items-center gap-1.5">

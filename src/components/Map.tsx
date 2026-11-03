@@ -15,9 +15,11 @@ import { t, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
-import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution, applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/basemap';
+import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
+import { applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/countryBorders';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import type { CountryId } from '../utils/areaId';
+import { COUNTRY_IDS, HOME_COUNTRY, PREFIXED_COUNTRIES, countryDef } from '../utils/countries';
 import { loadRegionOutlines, getRegionOutlines, regionAt } from '../utils/regionHit';
 
 interface MapProps {
@@ -248,11 +250,13 @@ const PROJECT_TYPE_COLOR = ['match', ['get', 'ptype'],
 // data regions' hover + click behavior.
 const SEUTUKUNNAT_SOURCE_ID = 'seutukunnat-boundaries';
 const SEUTUKUNNAT_LINE_LAYER = 'seutukunnat-boundary-line';
-const BOTH_COUNTRIES: readonly CountryId[] = ['fi', 'se'];
-/** Outline features carry `region`; Swedish region ids start `se_`. */
+/** Outline features carry `region`, whose id is prefixed outside HOME (countries.ts). */
 function outlineCountryFilter(country: CountryId | null): maplibregl.FilterSpecification | null {
   if (!country) return null;
-  return [country === 'se' ? '==' : '!=', ['slice', ['get', 'region'], 0, 3], 'se_'];
+  const prefix = ['slice', ['get', 'region'], 0, 3];
+  return (country === HOME_COUNTRY
+    ? ['all', ...PREFIXED_COUNTRIES.map((c) => ['!=', prefix, c.regionPrefix])]
+    : ['==', prefix, countryDef(country).regionPrefix]) as maplibregl.FilterSpecification;
 }
 // The boundary GeoJSON is fetched + parsed once (utils/regionHit.ts module cache) and
 // shared across map instances — the same parse also answers "which region was tapped".
@@ -273,7 +277,7 @@ const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
 // utils/fillOpacity.ts. Its IMPORTANT note applies: never replace it with a
 // constant via setPaintProperty.
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick, country = null, dataCountries = BOTH_COUNTRIES }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick, country = null, dataCountries = COUNTRY_IDS }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);

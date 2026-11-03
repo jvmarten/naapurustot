@@ -165,7 +165,7 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   extra region-file URLs are what the map bundle grew by (§2.5, Q3).
 - **Layers.** Sweden has 15: three of its own (economic standard in SEK, low economic
   standard, foreign background) and twelve that share a key with Finland under SCB's
-  definitions. Each shared key has a definition note and its own colour stops (`stopsSe`).
+  definitions. Each shared key has a definition note and its own colour stops (`byCountry.se.stops`).
   On a Sweden-only map the layer list shows only these, the comparison scope reads
   "Koko Ruotsi", and a Finnish-only layer switches to economic standard.
 - **Panel.** A Swedish area gets SCB's rows. Paavo-shaped breakdowns, the radar, the
@@ -196,7 +196,7 @@ The default factors, Swedish source per factor (all per DeSO unless noted):
 | Factor | Sweden | Same method as Finland? |
 |---|---|---|
 | Employment, education | SCB | SCB's definitions (scored within Sweden) |
-| Income | SCB ekonomisk standard, SEK (`propertiesSe`) | Different concept, scored within Sweden |
+| Income | SCB ekonomisk standard, SEK (the factor's `byCountry.se`) | Different concept, scored within Sweden |
 | Transit, healthcare, grocery, cycling | OpenStreetMap extract (`fetch_se_osm.py`) | Same tags. Swedish stops look under-mapped (60k vs Finland's 95k OSM stops) |
 | Schools | Skolverket register (`fetch_se_schools.py`) | Register, like Opintopolku |
 | Daycare | — | Preschools are not in Skolverket's register |

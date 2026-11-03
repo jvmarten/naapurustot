@@ -17,6 +17,7 @@ import type { ProcessedData } from './dataLoader';
 import { computeMetroAverages } from './metrics';
 import { REGION_IDS, type RegionId } from './regions';
 import type { CountryId } from './areaId';
+import { COUNTRY_IDS } from './countries.ts';
 import { CITY_VIEWPORTS } from './mapConstants';
 
 export interface RegionSelection {
@@ -27,7 +28,7 @@ export interface RegionSelection {
   country?: CountryId;
 }
 
-const COUNTRY_PARAMS: readonly string[] = ['fi', 'se'] satisfies CountryId[];
+const COUNTRY_PARAMS: readonly string[] = COUNTRY_IDS;
 
 /** Shared empty list, so a state that is already single-region keeps its identity.
  *  Frozen: every single-region parse and switch hands out this same array. */

@@ -210,6 +210,8 @@ import { join } from 'node:path';
 // prose — 144 keys, the "definition notes in the bundled fi.json" several entries above
 // paid for — moved to fi-detail.json, a ?url asset fetched at startup. Measured
 // 349,371 → 342,551, headroom 1,129 → 7,949. Put new notes there, not in fi.json.)
+// (2026-11-03, budget unchanged: the country registry, src/utils/countries.ts — per-country
+// tables in place of stopsSe / labelKeySe / propertiesSe. Measured 342,551 → 342,982.)
 const BUDGET = 350_500;
 const ASSETS_DIR = 'dist/assets';
 

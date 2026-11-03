@@ -23,23 +23,26 @@ describe('LAYERS', () => {
     }
   });
 
-  it("Sweden's stops (stopsSe) align with the palette and ascend", () => {
-    for (const layer of LAYERS.filter((l) => l.stopsSe)) {
-      expect(layer.stopsSe!.length, layer.id).toBe(layer.colors.length);
-      for (let i = 1; i < layer.stopsSe!.length; i++) {
-        expect(layer.stopsSe![i], layer.id).toBeGreaterThan(layer.stopsSe![i - 1]);
+  it("every country's own stops (byCountry) align with the palette and ascend", () => {
+    for (const layer of LAYERS) {
+      for (const [country, own] of Object.entries(layer.byCountry ?? {})) {
+        if (!own?.stops) continue;
+        expect(own.stops.length, `${layer.id} ${country}`).toBe(layer.colors.length);
+        for (let i = 1; i < own.stops.length; i++) {
+          expect(own.stops[i], `${layer.id} ${country}`).toBeGreaterThan(own.stops[i - 1]);
+        }
       }
     }
   });
 
   it('layerForCountry swaps in Sweden\'s stops only for a Swedish map', () => {
     const l = getLayerById('unemployment');
-    expect(layerForCountry(l, 'se').stops).toEqual(l.stopsSe);
+    expect(layerForCountry(l, 'se').stops).toEqual(l.byCountry?.se?.stops);
     expect(layerForCountry(l, 'fi')).toBe(l);
     expect(layerForCountry(l, null)).toBe(l);
   });
 
-  it('Swedish service layers are offered on one scale with Finland (no stopsSe)', () => {
+  it('Swedish service layers are offered on one scale with Finland (no own stops)', () => {
     for (const id of ['transit_access', 'school_density', 'healthcare_access', 'restaurant_density', 'grocery_access', 'cycling_infra'] as const) {
       expect(layerInCountry(id, 'se'), id).toBe(true);
       const l = getLayerById(id);
