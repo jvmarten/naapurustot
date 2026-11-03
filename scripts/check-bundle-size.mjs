@@ -312,7 +312,8 @@ const ASSETS_DIR = 'dist/assets';
 // sensors, a recorded live layer (watertemp.ts) plus the panel's SVG history
 // chart with 7-day / 30-day / 2-year spans, hover and arrow-key readout and the
 // page clock drawn on it (WaterChart.tsx). Measured 46,929 → 49,623 B, ~2.7 kB,
-// the whole of it this feed. Headroom restored to ~1.9 kB.)
+// the whole of it this feed. Headroom restored to ~1.9 kB. Sensoripaja's Espoo
+// beaches then joined the same feed: 49,623 → 50,434 B, headroom ~1.1 kB.)
 const LIVE_BUDGET = 51_500;
 
 const fmtKB = (b) => (b / 1024).toFixed(2);

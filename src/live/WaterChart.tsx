@@ -1,31 +1,32 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { t } from '../utils/i18n';
 import { clockTime, shortDate } from './timeControl';
-import {
-  fetchWaterHistory,
-  formatWaterC,
-  type WaterHistory,
-  type WaterPoint,
-  type WaterSpan,
-} from './watertemp';
+import { fetchWaterHistory, formatWaterC, type WaterHistory, type WaterPoint } from './watertemp';
 
 /**
  * A beach sensor's water temperature over the last week, month or two years.
  *
- * One series, so no legend: the panel's title names it. Each span draws the
- * series the PUBLISHER keeps for it — every reading for the week, its 3-hour means
- * for the month, its daily means for two years (see watertemp.ts) — and the
- * caption says which, because a daily mean and a reading are different claims.
- * The line breaks across a hole in the series rather than bridging it: a straight
- * segment over a week the probe was out of the water would draw temperatures
- * nobody measured.
+ * One series, so no legend: the panel's title names it. Each span draws what the
+ * sensor's own file holds for it — the publisher's 3-hour or daily MEANS where it
+ * publishes them (Uiras), and otherwise every reading in the window (Sensoripaja,
+ * whose files are readings only) — and the caption says which, because a daily
+ * mean and a reading are different claims. Nothing is averaged here.
  *
- * Hover (or arrow keys, once focused) reads off the nearest published point, and
- * the page's clock is drawn as a dashed line so the chart and the map can be
- * read against each other.
+ * A long series is THINNED, not averaged: per pixel column the first, lowest,
+ * highest and last reading are kept, so every drawn point is a real reading and a
+ * spike survives at any span. The line breaks across a hole in the series rather
+ * than bridging it — a straight segment over a week the probe was out of the water
+ * would draw temperatures nobody measured.
+ *
+ * `heavy` defers the download to a click: Sensoripaja serves two years of
+ * readings uncompressed (up to 2.7 MB), which is not a cost to impose on someone
+ * who only clicked the dot to read its name.
  */
 
-const SPANS: WaterSpan[] = ['raw', 'h3', 'd1'];
+type Span = '7d' | '30d' | '2y';
+const SPANS: Span[] = ['7d', '30d', '2y'];
+const DAY = 86_400_000;
+const WINDOW: Record<Span, number> = { '7d': 7 * DAY, '30d': 30 * DAY, '2y': 731 * DAY };
 const W = 272;
 const H = 128;
 const L = 30;
@@ -36,6 +37,48 @@ const B = 16;
 let yearFmt: Intl.DateTimeFormat | null = null;
 const monthYear = (at: number) =>
   (yearFmt ??= new Intl.DateTimeFormat(undefined, { month: 'short', year: '2-digit' })).format(at);
+// A two-year axis holds every date twice, so a point read off it carries its year.
+let fullFmt: Intl.DateTimeFormat | null = null;
+const fullDate = (at: number) =>
+  (fullFmt ??= new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })).format(at);
+
+/** The series a span draws, and which caption names it. */
+function pick(h: WaterHistory, span: Span): { points: WaterPoint[]; note: string } {
+  if (span === '30d' && h.h3.length > 1) return { points: h.h3, note: 'h3' };
+  if (span === '2y' && h.d1.length > 1) return { points: h.d1, note: 'd1' };
+  const last = h.raw.length ? h.raw[h.raw.length - 1].at : 0;
+  return { points: h.raw.filter((p) => p.at > last - WINDOW[span]), note: 'raw' };
+}
+
+/** First, lowest, highest and last reading per pixel column — real points only. */
+function thin(points: WaterPoint[], from: number, to: number): WaterPoint[] {
+  if (points.length <= 4 * W) return points;
+  const out: WaterPoint[] = [];
+  let col = -1;
+  let bucket: WaterPoint[] = [];
+  const flush = () => {
+    if (bucket.length === 0) return;
+    let lo = bucket[0];
+    let hi = bucket[0];
+    for (const p of bucket) {
+      if (p.celsius < lo.celsius) lo = p;
+      if (p.celsius > hi.celsius) hi = p;
+    }
+    const keep = new Set([bucket[0], lo, hi, bucket[bucket.length - 1]]);
+    out.push(...bucket.filter((p) => keep.has(p)));
+    bucket = [];
+  };
+  for (const p of points) {
+    const c = Math.floor(((p.at - from) / (to - from || 1)) * W);
+    if (c !== col) {
+      flush();
+      col = c;
+    }
+    bucket.push(p);
+  }
+  flush();
+  return out;
+}
 
 /** Round tick values covering [lo, hi], three to five of them. */
 function ticks(lo: number, hi: number): number[] {
@@ -46,40 +89,51 @@ function ticks(lo: number, hi: number): number[] {
   return out;
 }
 
-/** The path, split into a new subpath wherever the series has a hole. */
-function linePath(points: WaterPoint[], x: (at: number) => number, y: (c: number) => number): string {
-  if (points.length === 0) return '';
-  const gaps = points.slice(1).map((p, i) => p.at - points[i].at).sort((a, b) => a - b);
-  const hole = (gaps[gaps.length >> 1] ?? 0) * 3;
-  let d = '';
-  points.forEach((p, i) => {
-    const jump = i === 0 || p.at - points[i - 1].at > hole;
-    d += `${jump ? 'M' : 'L'}${x(p.at).toFixed(1)},${y(p.celsius).toFixed(1)}`;
-  });
-  return d;
-}
-
-export const WaterChart: React.FC<{ id: string; when: number }> = ({ id, when }) => {
+export const WaterChart: React.FC<{ url: string; when: number; heavy?: boolean }> = ({
+  url,
+  when,
+  heavy = false,
+}) => {
+  const [asked, setAsked] = useState(!heavy);
   const [history, setHistory] = useState<WaterHistory | null>(null);
   const [failed, setFailed] = useState(false);
-  const [span, setSpan] = useState<WaterSpan>('raw');
+  const [span, setSpan] = useState<Span>('7d');
   const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
+    setAsked(!heavy);
+  }, [url, heavy]);
+
+  useEffect(() => {
+    if (!asked) return;
     const ac = new AbortController();
     setHistory(null);
     setFailed(false);
-    fetchWaterHistory(id, ac.signal).then(setHistory, () => {
+    fetchWaterHistory(url, ac.signal).then(setHistory, () => {
       if (!ac.signal.aborted) setFailed(true);
     });
     return () => ac.abort();
-  }, [id]);
+  }, [url, asked]);
 
-  const points = useMemo(() => history?.[span] ?? [], [history, span]);
+  const shown = useMemo(() => (history ? pick(history, span) : null), [history, span]);
+
   const geom = useMemo(() => {
-    if (points.length < 2) return null;
-    const from = points[0].at;
-    const to = points[points.length - 1].at;
+    const all = shown?.points ?? [];
+    if (all.length < 2) return null;
+    const from = all[0].at;
+    const to = all[all.length - 1].at;
+    // HOLES ARE FOUND ON THE READINGS, THEN EACH STRETCH IS THINNED. The thinned
+    // series' spacing is the renderer's (days apart at two years), so a gap test
+    // on it would call every segment a hole; the sensor's own spacing decides.
+    const gaps = all.slice(1).map((p, i) => p.at - all[i].at).sort((a, b) => a - b);
+    const hole = (gaps[gaps.length >> 1] ?? 0) * 3;
+    const runs: WaterPoint[][] = [[all[0]]];
+    for (let i = 1; i < all.length; i++) {
+      if (all[i].at - all[i - 1].at > hole) runs.push([]);
+      runs[runs.length - 1].push(all[i]);
+    }
+    const thinned = runs.map((run) => thin(run, from, to));
+    const points = thinned.flat();
     let lo = Infinity;
     let hi = -Infinity;
     for (const p of points) {
@@ -91,14 +145,38 @@ export const WaterChart: React.FC<{ id: string; when: number }> = ({ id, when })
     const y1 = Math.max(ys[ys.length - 1], hi);
     const x = (at: number) => L + ((at - from) / (to - from)) * (W - L - R);
     const y = (c: number) => TOP + (1 - (c - y0) / (y1 - y0 || 1)) * (H - TOP - B);
-    const line = linePath(points, x, y);
+    let line = '';
+    for (const run of thinned) {
+      run.forEach((p, i) => {
+        line += `${i === 0 ? 'M' : 'L'}${x(p.at).toFixed(1)},${y(p.celsius).toFixed(1)}`;
+      });
+    }
+    const whole = ys.length > 1 && Number.isInteger(ys[1] - ys[0]);
     const xs = [0, 1 / 3, 2 / 3, 1].map((f) => from + f * (to - from));
-    return { from, to, lo, hi, ys, x, y, line, xs };
-  }, [points]);
+    return { from, to, lo, hi, ys, whole, x, y, line, xs, points };
+  }, [shown]);
 
-  const label = (at: number) => (span === 'd1' ? monthYear(at) : shortDate(new Date(at)));
+  if (!asked) {
+    return (
+      <div className="space-y-1 pt-1">
+        <button
+          type="button"
+          onClick={() => setAsked(true)}
+          className="rounded bg-sky-600 px-2 py-0.5 text-[11px] font-medium text-white dark:bg-sky-500 dark:text-surface-950"
+        >
+          {t('live.water.chart_load')}
+        </button>
+        <p className="text-[10px] leading-snug text-surface-500 dark:text-surface-400">
+          {t('live.water.chart_heavy')}
+        </p>
+      </div>
+    );
+  }
+
+  const points = geom?.points ?? [];
+  const label = (at: number) => (span === '2y' ? monthYear(at) : shortDate(new Date(at)));
   const pointLabel = (p: WaterPoint) =>
-    `${formatWaterC(p.celsius)} °C · ${shortDate(new Date(p.at))}${span === 'd1' ? '' : ` ${clockTime(p.at)}`}`;
+    `${formatWaterC(p.celsius)} °C · ${span === '2y' ? fullDate(p.at) : shortDate(new Date(p.at))}${shown?.note === 'd1' ? '' : ` ${clockTime(p.at)}`}`;
 
   const nearest = (at: number) => {
     let best = 0;
@@ -112,8 +190,7 @@ export const WaterChart: React.FC<{ id: string; when: number }> = ({ id, when })
     if (!geom) return;
     const box = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - box.left) / box.width) * W;
-    const at = geom.from + ((px - L) / (W - L - R)) * (geom.to - geom.from);
-    setHover(nearest(at));
+    setHover(nearest(geom.from + ((px - L) / (W - L - R)) * (geom.to - geom.from)));
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -194,7 +271,7 @@ export const WaterChart: React.FC<{ id: string; when: number }> = ({ id, when })
                 dominantBaseline="middle"
                 className="fill-surface-500 text-[9px] dark:fill-surface-400"
               >
-                {Number.isInteger(geom.ys[1] - geom.ys[0]) ? formatWaterC(v).replace(/\.0$/, '') : formatWaterC(v)}°
+                {geom.whole ? formatWaterC(v).replace(/\.0$/, '') : formatWaterC(v)}°
               </text>
             </g>
           ))}
@@ -250,9 +327,9 @@ export const WaterChart: React.FC<{ id: string; when: number }> = ({ id, when })
         </svg>
       )}
 
-      {geom && (
+      {geom && shown && (
         <p className="text-[10px] leading-snug text-surface-500 dark:text-surface-400">
-          {t(`live.water.note_${span}`)}
+          {t(`live.water.note_${shown.note}`)}
         </p>
       )}
     </div>

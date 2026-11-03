@@ -159,6 +159,7 @@ import {
   waterRange,
   WATER_POLL_MS,
   WATER_TOLERANCE_MS,
+  type WaterPoll,
   type WaterReading,
   type WaterTimeline,
 } from './watertemp';
@@ -2694,6 +2695,8 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
   const [sealevelPollFailed, setSealevelPollFailed] = useState(false);
   // Beach sensors: one live poll and nothing else, so one tri-state.
   const [waterStatus, setWaterStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+  // One of the two sensor networks did not answer the last poll (watertemp.ts).
+  const [waterPartial, setWaterPartial] = useState(false);
   /**
    * The REFINEMENT poll's failure, which is not the day's.
    *
@@ -5126,14 +5129,15 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
    * past a browser can ask for at an instant (watertemp.ts). Every poll is kept,
    * so a scrub inside this session's own window finds what was received then.
    */
-  useFeedPoll<WaterReading[]>({
+  useFeedPoll<WaterPoll>({
     enabled: waterOn,
     fetcher: fetchWaterLatest,
     intervalMs: WATER_POLL_MS,
     onData: useCallback(
-      (list: WaterReading[]) => {
-        mergeWater(waterTimelineRef.current, list);
+      (poll: WaterPoll) => {
+        mergeWater(waterTimelineRef.current, poll.readings);
         setWaterStatus('ready');
+        setWaterPartial(poll.partial);
         bumpTimeline();
         scheduleDraw();
       },
@@ -6204,6 +6208,10 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
                     {sampleSpan(waterAt)}
                   </p>
                 )
+              )}
+
+              {waterOn && live && waterStatus === 'ready' && waterPartial && (
+                <p className="text-amber-700 dark:text-amber-400">{t('live.water.partial')}</p>
               )}
 
               {/* THE UV SENTENCE NAMES THE MODEL EVERY TIME, in the one place
