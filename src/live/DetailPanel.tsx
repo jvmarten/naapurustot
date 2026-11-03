@@ -452,9 +452,15 @@ const WaterBody: React.FC<{ sample: WaterReading; when: Date }> = ({ sample, whe
       <Row label={t('live.detail.enclosure_temp')}>{formatWaterC(sample.enclosure)} °C</Row>
     )}
     <Row label={t('live.detail.measured_at')}>{clockTime(sample.at)}</Row>
-    <WaterChart id={sample.id} when={when.getTime()} />
+    {sample.historyUrl && (
+      <WaterChart
+        url={sample.historyUrl}
+        when={when.getTime()}
+        heavy={sample.source === 'sensoripaja'}
+      />
+    )}
     <p className="pt-1 text-[10px] text-surface-500 dark:text-surface-400">
-      {t('live.detail.source_uiras')}
+      {t(sample.source === 'sensoripaja' ? 'live.detail.source_sensoripaja' : 'live.detail.source_uiras')}
     </p>
   </div>
 );
