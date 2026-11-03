@@ -14,6 +14,13 @@ export const RADAR_METRICS = {
   'radar.housing': ['property_price_sqm'],
 } as const satisfies Record<string, readonly string[]>;
 
+/** A country's own metric for an axis, where its publisher measures the concept
+ *  differently (Sweden's income is SCB's ekonomisk standard). An axis a country has no
+ *  metric for keeps HOME's, which its areas lack, so the radar marks it "no data". */
+export const RADAR_METRICS_BY_COUNTRY: Partial<Record<'se', Partial<Record<keyof typeof RADAR_METRICS, readonly string[]>>>> = {
+  se: { 'radar.income': ['economic_standard_median'] },
+};
+
 /** The metrics the fit scorer normalizes against. */
 export const FIT_RANGE_KEYS = [
   'transit_stop_density', 'restaurant_density', 'ra_as_kpa', 'child_ratio',
