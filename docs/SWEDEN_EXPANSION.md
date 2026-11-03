@@ -187,7 +187,7 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   as §3.2 first planned. DeSO polygons are cut to OSM's land polygons before
   simplifying (`scripts/se/clip_deso_land.py`), because SCB's run out to sea where
   Paavo's stop at the shore.
-- **Not yet:** Swedish region hubs and ranking pages, and Swedish history before 2024 (Q5).
+- **Not yet:** Swedish ranking and municipality pages. (Region hubs landed in §18, history in §16.)
 
 ## 8. Quality index for Sweden (2026-10-27)
 
@@ -484,5 +484,21 @@ joins the two only where a 2025 area IS its 2018 namesake, decided from SCB's ow
   (`RADAR_METRICS_BY_COUNTRY` in `rangeKeys.ts`). Housing is Finland's €/m², which no
   Swedish area has, so it shows as "no data" rather than a guessed value.
 - **Still Finland-only:** the fit badge (the wizard scores Paavo-shaped metrics: daycare,
-  child share, foreign language) and region hub/ranking pages.
+  child share, foreign language) and ranking/municipality pages.
+
+## 18. Region hubs (2026-11-03)
+
+`scripts/prerender-hubs-se.mjs`, called from `prerender-hubs.mjs` with its page shell, writes
+one hub per FA25 region in three languages at Finland's hub routes (`/kaupunki/se_<id>/`,
+`/en/city/…`, `/sv/stad/…`): 213 pages, 5.1 MB. Each carries the region's SCB figures
+(from `region_aggregates.json`, the numbers the map shows), its municipalities, and every
+DeSO in it, by population, linked to its profile page. The directory page (`/kaupungit/`)
+gains a Sweden table, the sitemap's hub family lists the 71 regions, and every Swedish
+profile page's breadcrumb now points at its hub instead of the map.
+
+Deliberately region hubs only: no municipality pages (290 kommuner × 3), no ranking or
+comparison pages (each needs a choice of which Swedish metrics to rank), and no social
+cards (rasterized every deploy). Stockholm's hub is the largest page at 284 KB raw /
+50 KB gzipped for 1,300+ rows; it lists every area because those rows are the crawl path
+to the profile pages.
 
