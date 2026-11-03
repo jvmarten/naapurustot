@@ -318,6 +318,8 @@ const LOCALES = {
   fi: {
     ...JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi.json'), 'utf-8')),
     ...JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi-extra.json'), 'utf-8')),
+    // note.* / metric_explanation.* prose, fetched at startup by the app (i18n.ts).
+    ...JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'fi-detail.json'), 'utf-8')),
   },
   en: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'en.json'), 'utf-8')),
   sv: JSON.parse(readFileSync(join(ROOT, 'src', 'locales', 'sv.json'), 'utf-8')),

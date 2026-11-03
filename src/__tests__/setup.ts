@@ -2,7 +2,8 @@ import '@testing-library/jest-dom/vitest';
 import en from '../locales/en.json';
 import sv from '../locales/sv.json';
 import fiExtra from '../locales/fi-extra.json';
-import { __testInjectLocale, __testInjectFiExtra } from '../utils/i18n';
+import fiDetail from '../locales/fi-detail.json';
+import { __testInjectLocale, __testInjectFiExtra, __testInjectFiDetail } from '../utils/i18n';
 
 // Production loads en/sv lazily via fetch; in jsdom tests there's no asset
 // server, so preload them synchronously here. Production bundles do not
@@ -12,3 +13,6 @@ __testInjectLocale('sv', sv as Record<string, string>);
 // IN-7: page-only fi strings live in fi-extra.json (a lazy ?url asset in prod);
 // inject them synchronously so page-component tests resolve fi headings.
 __testInjectFiExtra(fiExtra as Record<string, string>);
+// The map's note.* / metric_explanation.* prose lives in fi-detail.json, fetched at
+// startup in production.
+__testInjectFiDetail(fiDetail as Record<string, string>);

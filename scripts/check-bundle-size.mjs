@@ -206,6 +206,10 @@ import { join } from 'node:path';
 // FeedbackModal chunk (1.7 kB), Turnstile split out of AuthModal into a chunk the two
 // share, and the form's strings in the bundled fi.json. Measured 346,474 → 349,002;
 // headroom restored to ~1.5 KB.)
+// (2026-11-03, budget unchanged: the bundled fi.json's note.* and metric_explanation.*
+// prose — 144 keys, the "definition notes in the bundled fi.json" several entries above
+// paid for — moved to fi-detail.json, a ?url asset fetched at startup. Measured
+// 349,371 → 342,551, headroom 1,129 → 7,949. Put new notes there, not in fi.json.)
 const BUDGET = 350_500;
 const ASSETS_DIR = 'dist/assets';
 

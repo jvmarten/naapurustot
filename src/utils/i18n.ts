@@ -23,6 +23,12 @@ import svUrl from '../locales/sv.json?url';
 // always-bundled fi.json into a lazy ?url asset, loaded on demand by the two
 // lazy pages that render them — reclaims ~2 KB gz off the always-loaded chunk.
 import fiExtraUrl from '../locales/fi-extra.json?url';
+// The map's Finnish explanatory prose — every `note.*` (source caveats, cross-country
+// legend lines) and `metric_explanation.*` (the panel's "i" popovers) — split off the
+// bundled fi.json into a ?url asset fetched at startup. None of it is needed for the
+// first paint, and it was ~8.6 kB gzipped of the map's critical-path JS: the cost of
+// most of a country's worth of layers. See `isDetailKey` for what shows meanwhile.
+import fiDetailUrl from '../locales/fi-detail.json?url';
 
 export type Lang = 'fi' | 'en' | 'sv';
 
@@ -31,10 +37,18 @@ const FI = fi as Dict;
 const EN: Dict = {};
 const SV: Dict = {};
 const FI_EXTRA: Dict = {};
+const FI_DETAIL: Dict = {};
 
 let enPromise: Promise<void> | null = null;
 let svPromise: Promise<void> | null = null;
 let fiExtraPromise: Promise<void> | null = null;
+let fiDetailPromise: Promise<void> | null = null;
+let fiDetailLoaded = false;
+
+/** Keys that live in fi-detail.json rather than the bundled fi.json. */
+export function isDetailKey(key: string): boolean {
+  return key.startsWith('note.') || key.startsWith('metric_explanation.');
+}
 
 /** Lang whose dictionary fetch failed (so a banner can offer a retry), else null. */
 let loadError: Lang | null = null;
@@ -85,6 +99,26 @@ export function loadFiExtra(): Promise<void> {
     .then((d: Dict) => { Object.assign(FI_EXTRA, d); notify(); })
     .catch(() => { fiExtraPromise = null; });
   return fiExtraPromise;
+}
+
+/**
+ * Fetch the Finnish detail prose (fi-detail.json). Started once at module load, so it
+ * runs alongside the region data rather than waiting for a click. Every language needs
+ * it: en/sv fall back to Finnish while their own dictionary is in flight, and their
+ * dictionaries are what replace it. A failure is retried on the next call.
+ */
+export function loadFiDetail(): Promise<void> {
+  if (fiDetailPromise) return fiDetailPromise;
+  fiDetailPromise = fetch(fiDetailUrl)
+    .then((r) => r.json())
+    .then((d: Dict) => { Object.assign(FI_DETAIL, d); fiDetailLoaded = true; notify(); })
+    .catch(() => { fiDetailPromise = null; });
+  return fiDetailPromise;
+}
+
+// Tests inject the dictionary synchronously (setup.ts) and have no asset server.
+if (typeof window !== 'undefined' && typeof fetch === 'function' && import.meta.env.MODE !== 'test') {
+  void loadFiDetail();
 }
 
 let currentLang: Lang = 'fi';
@@ -151,11 +185,19 @@ export function retryLocaleLoad(): void {
   notify();
 }
 
-/** Look up a translation by key. Returns the key itself if no translation is found. */
+/**
+ * Look up a translation by key. Returns the key itself if no translation is found —
+ * except a detail key (see `isDetailKey`) asked before fi-detail.json has arrived,
+ * which returns '' so the page never prints "note.walkability" at anyone. Callers
+ * render detail text conditionally on the string, and `useI18nVersion` re-renders
+ * them when it lands.
+ */
 export function t(key: string): string {
-  if (currentLang === 'sv') return SV[key] ?? EN[key] ?? FI[key] ?? FI_EXTRA[key] ?? key;
-  if (currentLang === 'en') return EN[key] ?? FI[key] ?? FI_EXTRA[key] ?? key;
-  return FI[key] ?? FI_EXTRA[key] ?? EN[key] ?? key;
+  const hit = currentLang === 'sv' ? SV[key] ?? EN[key] ?? FI[key] ?? FI_DETAIL[key] ?? FI_EXTRA[key]
+    : currentLang === 'en' ? EN[key] ?? FI[key] ?? FI_DETAIL[key] ?? FI_EXTRA[key]
+    : FI[key] ?? FI_DETAIL[key] ?? FI_EXTRA[key] ?? EN[key];
+  if (hit !== undefined) return hit;
+  return !fiDetailLoaded && isDetailKey(key) ? '' : key;
 }
 
 function subscribeI18n(fn: () => void): () => void {
@@ -181,6 +223,17 @@ export function useI18nVersion(): number {
 export function __testInjectLocale(lang: 'en' | 'sv', data: Dict): void {
   if (lang === 'en') { Object.assign(EN, data); enPromise = Promise.resolve(); }
   else { Object.assign(SV, data); svPromise = Promise.resolve(); }
+}
+
+/** TEST ONLY: synchronously inject the fi-detail prose dict (used by setup.ts). */
+export function __testInjectFiDetail(data: Dict): void {
+  Object.assign(FI_DETAIL, data); fiDetailLoaded = true; fiDetailPromise = Promise.resolve();
+}
+
+/** TEST ONLY: forget fi-detail.json, as a page sees it before the fetch lands. */
+export function __testResetFiDetail(): void {
+  for (const k of Object.keys(FI_DETAIL)) delete FI_DETAIL[k];
+  fiDetailLoaded = false; fiDetailPromise = null;
 }
 
 /** TEST ONLY: synchronously inject the fi-extra page dict (used by setup.ts). */
