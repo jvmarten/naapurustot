@@ -202,6 +202,14 @@ if (existsSync(sePath)) {
     alueSeUrls.push({ loc: alt.en, priority: '0.5', changefreq: 'monthly', alternates: alt });
     alueSeUrls.push({ loc: alt.sv, priority: '0.6', changefreq: 'monthly', alternates: alt });
   }
+  // Sweden's FA25 region hubs (prerender-hubs-se.mjs), in the same family as Finland's.
+  const seRegionIds = [...new Set(JSON.parse(readFileSync(sePath, 'utf-8')).features.map((f) => f.properties.city).filter(Boolean))].sort();
+  for (const id of seRegionIds) {
+    const alt = { fi: `${ORIGIN}/kaupunki/${id}/`, en: `${ORIGIN}/en/city/${id}/`, sv: `${ORIGIN}/sv/stad/${id}/` };
+    kaupunkiUrls.push({ loc: alt.fi, priority: '0.6', changefreq: 'monthly', alternates: alt });
+    kaupunkiUrls.push({ loc: alt.en, priority: '0.6', changefreq: 'monthly', alternates: alt });
+    kaupunkiUrls.push({ loc: alt.sv, priority: '0.7', changefreq: 'monthly', alternates: alt });
+  }
 }
 
 // --- Manifest-driven families ---------------------------------------------

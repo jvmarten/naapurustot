@@ -519,8 +519,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
   }
 
   const d = state.feature.properties as NeighborhoodProperties;
-  // Sweden: SCB's metrics, not Paavo's — its own sections below, no fit score, no
-  // region-hub link (Swedish regions have no hub pages; the map is the region view).
+  // Sweden: SCB's metrics, not Paavo's — its own sections below and no fit score. The
+  // region link goes to its FA25 hub (scripts/prerender-hubs-se.mjs), as Finland's does.
   const isSe = countryOfId(d.pno) === 'se';
   const seItems = (ids: LayerId[]) => ids.map((id) => {
     const layer = getLayerById(id);
@@ -625,7 +625,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
         <nav className="text-sm text-surface-600 dark:text-surface-400 mb-6">
           <Link to="/" className="hover:text-brand-600">{t('app.title')}</Link>
           <span className="mx-2">/</span>
-          <a href={isSe ? `/?city=${d.city}` : `${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
+          <a href={`${cityHubPrefix[lang]}/${d.city ?? 'helsinki_metro'}/`} className="hover:text-brand-600">{cityName}</a>
           {prerenderedNav?.muni && (
             <>
               <span className="mx-2">/</span>

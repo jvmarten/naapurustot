@@ -85,6 +85,8 @@ const TEXT_SE = {
 };
 
 const SOURCES_PATH = { fi: '/tietolahteet/', en: '/en/data-sources/', sv: '/sv/datakallor/' };
+// The area's FA25 region hub (prerender-hubs-se.mjs), at Finland's hub routes.
+const HUB_PREFIX = { fi: '/kaupunki', en: '/en/city', sv: '/sv/stad' };
 
 /** Load Sweden's areas (the build input) and its region averages; empty when absent. */
 export function loadSwedishAreas(root) {
@@ -142,7 +144,7 @@ export function generateSePage(feature, lang, ctx) {
   }).join('\n');
   const noscript = [
     `<h1>${escapeHtml(name)} (${p.pno})</h1>`,
-    `<p>${escapeHtml(T.intro(name, muni, region))}</p>`,
+    `<p>${escapeHtml(T.intro(name, muni, region))} <a href="${HUB_PREFIX[lang]}/${p.city}/">${escapeHtml(region)}</a></p>`,
     sectionsHtml,
     `<p>${escapeHtml(T.sources)} <a href="${SOURCES_PATH[lang]}">${escapeHtml(T.sourcesLink)}</a></p>`,
     `<p><a href="/?pno=${p.pno}">${escapeHtml(T.mapLink)}</a></p>`,
@@ -172,7 +174,7 @@ export function generateSePage(feature, lang, ctx) {
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: 'https://naapurustot.fi/' },
-      { '@type': 'ListItem', position: 2, name: region || T.country, item: `https://naapurustot.fi/?city=${p.city}` },
+      { '@type': 'ListItem', position: 2, name: region || T.country, item: `https://naapurustot.fi${HUB_PREFIX[lang]}/${p.city}/` },
       { '@type': 'ListItem', position: 3, name, item: canonicalUrl },
     ],
   };

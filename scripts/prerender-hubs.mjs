@@ -16,6 +16,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, existsSync } from 'fs';
+import { loadSeRegions, buildSeRegionHub, buildSeDirectorySection } from './prerender-hubs-se.mjs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
@@ -173,6 +174,12 @@ function featureCenter(feature) {
 // out of the inline <script type="application/ld+json"> element.
 const safeJson = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
 
+/** What the Swedish hubs borrow from this file (a function: some of it is defined below). */
+function seHubHelpers() {
+  return { escapeHtml, fmtNum, getRegionName, toSlug, htmlPage, safeJson, cityUrl, dirUrl,
+    LOCALES, LOCALE_TAG, ORIGIN, TEXT, AREA_PREFIX, CITY_PREFIX, DIRECTORY_PATH };
+}
+
 // CF-11b: localized Dataset name/description for the hub-page Dataset JSON-LD.
 const DATASET_TEXT = {
   fi: { name: (r) => `${r} – naapurustojen tilastot`, desc: (r) => `Avoimeen julkiseen dataan perustuvat naapurustojen tilastot alueella ${r}.` },
@@ -308,7 +315,7 @@ function emitRegionCard(region, regionName, lang) {
   return `${ORIGIN}/og/region-${region.id}-${lang}.${hash}.png`;
 }
 
-function htmlPage({ lang, title, description, canonical, alternates, jsonLd, body, ogImage, expectFaq }) {
+function htmlPage({ lang, title, description, canonical, alternates, jsonLd, body, ogImage, expectFaq, footer: footerOverride, rights }) {
   // CF-11: per-page social card (PNG) when provided, else the shared static image.
   const ogImg = ogImage || `${ORIGIN}/og-image.png`;
   const langLinks = LANGS.map((l) => {
@@ -321,7 +328,8 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     .map((l) => `    <link rel="alternate" hreflang="${l}" href="${alternates[l]}" />`)
     .join('\n');
 
-  const footer = {
+  // Sweden's hubs name their own sources (prerender-hubs-se.mjs).
+  const footer = footerOverride ?? {
     fi: 'Tiedot: Tilastokeskus (Paavo), HSL, HSY, OpenStreetMap ja muut avoimet julkiset lähteet.',
     en: 'Data: Statistics Finland (Paavo), HSL, HSY, OpenStreetMap and other open public sources.',
     sv: 'Data: Statistikcentralen (Paavo), HSL, HSY, OpenStreetMap och andra öppna offentliga källor.',
@@ -358,7 +366,7 @@ function htmlPage({ lang, title, description, canonical, alternates, jsonLd, bod
     <meta name="DC.date" content="${CITE_YEAR}" />
     <meta name="DC.identifier" content="${canonical}" />
     <meta name="DC.language" content="${lang}" />
-    <meta name="DC.rights" content="Data: Statistics Finland (CC BY 4.0), OpenStreetMap (ODbL) and other public sources" />
+    <meta name="DC.rights" content="${escapeHtml(rights ?? 'Data: Statistics Finland (CC BY 4.0), OpenStreetMap (ODbL) and other public sources')}" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#1e3a5f" />
 ${altLinks}
@@ -592,6 +600,9 @@ const regions = [...byRegion.entries()]
     };
   })
   .sort((a, b) => b.count - a.count);
+
+// Sweden's FA25 regions get hub pages too (prerender-hubs-se.mjs): region hubs only.
+const seRegions = loadSeRegions(ROOT);
 
 const TOTAL_AREAS = regions.reduce((s, r) => s + r.count, 0);
 const TOTAL_POP = regions.reduce((s, r) => s + r.totalPop, 0);
@@ -985,6 +996,7 @@ function buildDirectory(lang) {
 ${rows}
         </tbody>
       </table>
+${buildSeDirectorySection(seRegions, lang, seHubHelpers())}
 ${buildDirectoryRankingNav(lang)}
 ${buildCiteSection(lang, T.dirTitle, alternates[lang])}`;
 
@@ -992,8 +1004,8 @@ ${buildCiteSection(lang, T.dirTitle, alternates[lang])}`;
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: T.dirH1,
-    numberOfItems: regions.length,
-    itemListElement: regions.map((r, i) => ({
+    numberOfItems: regions.length + seRegions.length,
+    itemListElement: [...regions, ...seRegions].map((r, i) => ({
       '@type': 'ListItem',
       position: i + 1,
       name: getRegionName(r.id, lang),
@@ -1660,6 +1672,15 @@ for (const region of regions) {
 }
 
 console.log(`Prerendered ${cityCount} regional hubs + 3 directory pages (${cityCount * 3 + 3} HTML files).`);
+
+for (const region of seRegions) {
+  for (const lang of LANGS) {
+    const dir = CITY_OUT[lang](region.id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildSeRegionHub(region, lang, seHubHelpers()));
+  }
+}
+console.log(`Prerendered ${seRegions.length} Swedish regional hubs (${seRegions.length * 3} HTML files).`);
 
 // Municipality (kunta) hubs (×3 languages). People search by municipality, but a
 // seutukunta hub bundles several — so each multi-municipality region's municipalities
