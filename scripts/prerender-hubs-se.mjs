@@ -4,9 +4,9 @@
  * prerender-hubs.mjs, which passes its page shell and helpers so the two countries' hubs
  * share one template, one head-integrity check and one stylesheet.
  *
- * Region hubs ONLY (213 pages): no municipality pages, ranking pages, comparison pages or
- * social cards. Each of those is a separate decision about page count and about which
- * Swedish metrics to rank (docs/SWEDEN_EXPANSION.md §18).
+ * Region hubs (213 pages) and kommun pages (265 × 3, at Finland's /kunta/ routes; §19), but
+ * no ranking pages, comparison pages or social cards. Each of those is a separate decision
+ * about page count and about which Swedish metrics to rank (docs/SWEDEN_EXPANSION.md §18).
  *
  * Every figure is SCB's: the area rows straight from se_deso.geojson, the region figures
  * from region_aggregates.json (computeMetroAverages, the same numbers the map shows for
@@ -89,6 +89,58 @@ const STATS = [
   { prop: 'ownership_rate', label: 'layer.ownership', fmt: 'pct' },
 ];
 
+/**
+ * Kommun figures: properties the pipeline writes per kommun (is_proxy), shown on a kommun
+ * page only when every DeSO of the kommun carries the same value — that value is then the
+ * kommun's published figure, read back, not a sum or average of ours. Where a source is
+ * finer than the kommun (rent in Stockholm's and Malmö's districts) the values differ and
+ * the row is left out rather than summarised.
+ */
+const MUNI_STATS = [
+  { prop: 'he_kika', label: 'layer.avg_age', fmt: 'years' },
+  { prop: 'house_price_sek', label: 'layer.house_price_se', fmt: 'sek' },
+  { prop: 'rent_sqm_month_sek', label: 'layer.rent_se', fmt: 'dec0' },
+  { prop: 'job_self_sufficiency', label: 'layer.job_self_sufficiency', fmt: 'pct0' },
+  { prop: 'pensioners_6574_pct', label: 'layer.pensioners_se', fmt: 'pct' },
+  { prop: 'sickness_days', label: 'layer.sickness_se', fmt: 'dec1' },
+  { prop: 'broadband_coverage_pct', label: 'layer.broadband_coverage', fmt: 'pct' },
+  { prop: 'population_projection_pct', label: 'layer.population_projection', fmt: 'signed' },
+];
+const YEARS = { fi: 'v', en: 'yrs', sv: 'år' };
+
+const MUNI_TEXT = {
+  fi: {
+    title: (m) => `${m} (Ruotsi) — DeSO-alueet ja tilastot | naapurustot.fi`,
+    desc: (m, n) => `${m}, Ruotsi: kunnan ${n} DeSO-tilastoaluetta ja niiden tilastot — väkiluku, taloudellinen standardi, asuminen ja palvelut. Lähde: SCB.`,
+    lead: (m, r, n, pop) => `${m} on ruotsalainen kunta, joka kuuluu toiminnalliseen analyysialueeseen ${r}. naapurustot.fi kattaa kunnan ${n} DeSO-tilastoaluetta, joissa asuu noin ${pop} ihmistä.`,
+    statsHeading: 'Kunnan tunnusluvut',
+    statsNote: 'Kunnan omat luvut (SCB, Kolada, PTS), samat jotka kartta näyttää kunnan jokaiselle alueelle.',
+    regionLabel: 'Alue',
+    tableCaption: (m) => `${m} — DeSO-alueet väkiluvun mukaan`,
+    regionMunisHeading: 'Kunnat',
+  },
+  en: {
+    title: (m) => `${m} (Sweden) — DeSO areas & statistics | naapurustot.fi`,
+    desc: (m, n) => `${m}, Sweden: the municipality's ${n} DeSO statistical areas and their statistics — population, economic standard, housing and services. Source: SCB.`,
+    lead: (m, r, n, pop) => `${m} is a Swedish municipality in the ${r} functional analysis region. naapurustot.fi covers its ${n} DeSO statistical areas, home to about ${pop} people.`,
+    statsHeading: 'The municipality in figures',
+    statsNote: 'The municipality\'s own figures (SCB, Kolada, PTS), the same the map shows for each of its areas.',
+    regionLabel: 'Region',
+    tableCaption: (m) => `${m} — DeSO areas by population`,
+    regionMunisHeading: 'Municipalities',
+  },
+  sv: {
+    title: (m) => `${m} (Sverige) — DeSO-områden och statistik | naapurustot.fi`,
+    desc: (m, n) => `${m}, Sverige: kommunens ${n} DeSO-områden och deras statistik — folkmängd, ekonomisk standard, boende och service. Källa: SCB.`,
+    lead: (m, r, n, pop) => `${m} är en kommun i Sverige, i den funktionella analysregionen ${r}. naapurustot.fi täcker kommunens ${n} DeSO-områden, där omkring ${pop} personer bor.`,
+    statsHeading: 'Kommunen i siffror',
+    statsNote: 'Kommunens egna siffror (SCB, Kolada, PTS), samma som kartan visar för vart och ett av dess områden.',
+    regionLabel: 'Region',
+    tableCaption: (m) => `${m} — DeSO-områden efter folkmängd`,
+    regionMunisHeading: 'Kommuner',
+  },
+};
+
 /** Sweden's regions from the build input, largest first; [] when it is absent. */
 export function loadSeRegions(root) {
   const path = join(root, 'public', 'data', 'se_deso.geojson');
@@ -121,6 +173,48 @@ export function loadSeRegions(root) {
     .sort((a, b) => b.totalPop - a.totalPop || a.id.localeCompare(b.id));
 }
 
+/**
+ * Kommun pages, at Finland's /kunta/ routes. As in Finland, a region holding a single
+ * kommun gets none: its region hub already is that kommun's page (25 of 71 regions), so
+ * a second page would be duplicate content. A slug shared with another kommun (Habo and
+ * Håbo both slugify to "habo") or with any Finnish municipality's slug (`takenSlugs`)
+ * takes the kommun code, for every kommun that shares it, so no page overwrites another.
+ * Sets `region.muniSlugs` (name → slug) for the region hub's links.
+ */
+export function loadSeMunicipalities(seRegions, slugify, takenSlugs = new Set()) {
+  const all = [];
+  for (const region of seRegions) {
+    const byName = new Map();
+    for (const f of region.features) {
+      const p = f.properties;
+      if (!p.municipality) continue;
+      if (!byName.has(p.municipality)) byName.set(p.municipality, []);
+      byName.get(p.municipality).push(f);
+    }
+    for (const [name, features] of byName) all.push({ name, region, features });
+  }
+  const counts = new Map();
+  for (const m of all) counts.set(slugify(m.name), (counts.get(slugify(m.name)) || 0) + 1);
+  const out = [];
+  for (const m of all) {
+    const code = String(m.features[0].properties.kunta || '');
+    const base = slugify(m.name);
+    const slug = (counts.get(base) > 1 || takenSlugs.has(base)) && code ? `${base}-${code}` : base;
+    if (m.region.munis.length < 2) continue;
+    let totalPop = 0;
+    for (const f of m.features) if (Number.isFinite(Number(f.properties.he_vakiy))) totalPop += Number(f.properties.he_vakiy);
+    const kommun = {};
+    for (const s of MUNI_STATS) {
+      const vals = new Set(m.features.map((f) => f.properties[s.prop]));
+      const [v] = vals;
+      if (vals.size === 1 && v != null && Number.isFinite(Number(v))) kommun[s.prop] = Number(v);
+    }
+    (m.region.muniSlugs ??= new Map()).set(m.name, slug);
+    out.push({ name: m.name, code, slug, regionId: m.region.id, features: m.features, count: m.features.length, totalPop, kommun });
+  }
+  return out.sort((a, b) => b.totalPop - a.totalPop || a.code.localeCompare(b.code));
+}
+
 /** The Swedish section of the /kaupungit/ directory page. */
 export function buildSeDirectorySection(seRegions, lang, h) {
   if (!seRegions.length) return '';
@@ -140,9 +234,113 @@ ${rows}
       </table>`;
 }
 
+/** Area table rows, largest first, each linked to its profile page. */
+function areaRows(features, lang, h) {
+  const { escapeHtml, fmtNum, toSlug } = h;
+  return [...features]
+    .sort((a, b) => (Number(b.properties.he_vakiy) || 0) - (Number(a.properties.he_vakiy) || 0) || a.properties.pno.localeCompare(b.properties.pno))
+    .map((f) => {
+      const p = f.properties;
+      const econ = Number(p.economic_standard_median) > 0 ? `${fmtNum(p.economic_standard_median, lang)} kr` : '—';
+      const pop = Number.isFinite(Number(p.he_vakiy)) ? fmtNum(p.he_vakiy, lang) : '—';
+      return `        <tr><td><a href="${h.AREA_PREFIX[lang]}/${escapeHtml(toSlug(p.pno, p.nimi))}/">${escapeHtml(p.nimi)}</a></td>` +
+        `<td>${escapeHtml(p.pno)}</td><td class="num">${pop}</td><td class="num">${econ}</td></tr>`;
+    }).join('\n');
+}
+
+/** One Swedish kommun page. `h` carries prerender-hubs.mjs's shell and helpers. */
+export function buildSeMunicipalityHub(muni, lang, h) {
+  const { escapeHtml, fmtNum, getRegionName, htmlPage, safeJson, LOCALES, LOCALE_TAG, ORIGIN } = h;
+  const T = TEXT[lang];
+  const M = MUNI_TEXT[lang];
+  const regionName = getRegionName(muni.regionId, lang);
+  const alternates = Object.fromEntries(['fi', 'en', 'sv'].map((l) => [l, h.muniUrl(muni.slug, l)]));
+  const label = (k) => LOCALES[lang]?.[k] || LOCALES.fi[k] || k;
+  const num = (v, d) => Number(v).toLocaleString(LOCALE_TAG[lang], { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmt = (v, f) => {
+    switch (f) {
+      case 'sek': return `${fmtNum(v, lang)} kr`;
+      case 'years': return `${num(v, 1)} ${YEARS[lang]}`;
+      case 'pct': return `${num(v, 1)} %`;
+      case 'pct0': return `${num(v, 0)} %`;
+      case 'signed': return `${v > 0 ? '+' : ''}${num(v, 1)} %`;
+      case 'dec0': return num(v, 0);
+      default: return num(v, 1);
+    }
+  };
+  const stats = MUNI_STATS.filter((s) => muni.kommun[s.prop] != null)
+    .map((s) => `        <tr><th scope="row">${escapeHtml(label(s.label))}</th><td class="num">${escapeHtml(fmt(muni.kommun[s.prop], s.fmt))}</td></tr>`).join('\n');
+  const largest = [...muni.features].sort((a, b) => (Number(b.properties.he_vakiy) || 0) - (Number(a.properties.he_vakiy) || 0))[0];
+
+  const nameEsc = escapeHtml(muni.name);
+  const regionEsc = escapeHtml(regionName);
+  const regionHref = `${h.CITY_PREFIX[lang]}/${escapeHtml(muni.regionId)}/`;
+  const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${h.DIRECTORY_PATH[lang]}">${escapeHtml(h.TEXT[lang].dirCrumb)}</a> / ${escapeHtml(T.country)} / <a href="${regionHref}">${regionEsc}</a> / ${nameEsc}</p>
+      <h1>${nameEsc}</h1>
+      <p class="lead">${escapeHtml(M.lead(muni.name, regionName, fmtNum(muni.count, lang), fmtNum(muni.totalPop, lang)))}</p>
+      <p class="summary"><span>${escapeHtml(T.summary(fmtNum(muni.count, lang), fmtNum(muni.totalPop, lang)))}</span></p>
+      <p><a class="cta" href="/?pno=${escapeHtml(String(largest.properties.pno))}">${escapeHtml(T.mapCta(muni.name))}</a></p>
+      <p>${escapeHtml(M.regionLabel)}: <a href="${regionHref}">${regionEsc}</a></p>
+${stats ? `      <h2>${escapeHtml(M.statsHeading)}</h2>
+      <table>
+        <tbody>
+${stats}
+        </tbody>
+      </table>
+      <p class="note">${escapeHtml(M.statsNote)}</p>` : ''}
+      <h2>${escapeHtml(T.areasHeading)}</h2>
+      <table>
+        <caption>${escapeHtml(M.tableCaption(muni.name))}</caption>
+        <thead><tr><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(T.colCode)}</th><th scope="col" class="num">${escapeHtml(T.colPop)}</th><th scope="col" class="num">${escapeHtml(T.colEcon)}</th></tr></thead>
+        <tbody>
+${areaRows(muni.features, lang, h)}
+        </tbody>
+      </table>
+      <p class="note">${escapeHtml(T.sources)}</p>
+      <p><a href="${regionHref}">← ${regionEsc}</a></p>`;
+
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: muni.name,
+    description: M.desc(muni.name, muni.count),
+    url: alternates[lang],
+    inLanguage: lang,
+    isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
+    about: {
+      '@type': 'Place',
+      name: muni.name,
+      address: { '@type': 'PostalAddress', addressLocality: muni.name, addressCountry: 'SE' },
+    },
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+      { '@type': 'ListItem', position: 2, name: h.TEXT[lang].dirCrumb, item: h.dirUrl(lang) },
+      { '@type': 'ListItem', position: 3, name: regionName, item: h.cityUrl(muni.regionId, lang) },
+      { '@type': 'ListItem', position: 4, name: muni.name },
+    ],
+  };
+  const jsonLd = [collection, breadcrumb].map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`).join('\n');
+
+  return htmlPage({
+    lang,
+    title: M.title(muni.name),
+    description: M.desc(muni.name, muni.count),
+    canonical: alternates[lang],
+    alternates,
+    jsonLd,
+    body,
+    footer: T.footer,
+    rights: 'Data: Statistics Sweden (SCB), CC0, and other public sources',
+  });
+}
+
 /** One Swedish region hub page. `h` carries prerender-hubs.mjs's shell and helpers. */
 export function buildSeRegionHub(region, lang, h) {
-  const { escapeHtml, fmtNum, getRegionName, toSlug, htmlPage, safeJson, LOCALES, LOCALE_TAG, ORIGIN } = h;
+  const { escapeHtml, fmtNum, getRegionName, htmlPage, safeJson, LOCALES, LOCALE_TAG, ORIGIN } = h;
   const T = TEXT[lang];
   const name = getRegionName(region.id, lang);
   const alternates = Object.fromEntries(['fi', 'en', 'sv'].map((l) => [l, h.cityUrl(region.id, l)]));
@@ -152,16 +350,12 @@ export function buildSeRegionHub(region, lang, h) {
 
   const stats = STATS.map((s) => [label(s.label), fmt(region.avg[s.prop], s.fmt)]).filter(([, v]) => v != null)
     .map(([l, v]) => `        <tr><th scope="row">${escapeHtml(l)}</th><td class="num">${escapeHtml(v)}</td></tr>`).join('\n');
-  const munis = region.munis.map(([m, n]) => `${escapeHtml(m)} (${fmtNum(n, lang)})`).join(' · ');
-  const rows = [...region.features]
-    .sort((a, b) => (Number(b.properties.he_vakiy) || 0) - (Number(a.properties.he_vakiy) || 0) || a.properties.pno.localeCompare(b.properties.pno))
-    .map((f) => {
-      const p = f.properties;
-      const econ = Number(p.economic_standard_median) > 0 ? `${fmtNum(p.economic_standard_median, lang)} kr` : '—';
-      const pop = Number.isFinite(Number(p.he_vakiy)) ? fmtNum(p.he_vakiy, lang) : '—';
-      return `        <tr><td><a href="${h.AREA_PREFIX[lang]}/${escapeHtml(toSlug(p.pno, p.nimi))}/">${escapeHtml(p.nimi)}</a></td>` +
-        `<td>${escapeHtml(p.pno)}</td><td class="num">${pop}</td><td class="num">${econ}</td></tr>`;
-    }).join('\n');
+  const munis = region.munis.map(([m, n]) => {
+    const slug = region.muniSlugs?.get(m);
+    const text = `${escapeHtml(m)} (${fmtNum(n, lang)})`;
+    return slug && h.MUNI_PREFIX ? `<a href="${h.MUNI_PREFIX[lang]}/${escapeHtml(slug)}/">${text}</a>` : text;
+  }).join(' · ');
+  const rows = areaRows(region.features, lang, h);
 
   const nameEsc = escapeHtml(name);
   const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${h.DIRECTORY_PATH[lang]}">${escapeHtml(h.TEXT[lang].dirCrumb)}</a> / ${escapeHtml(T.country)} / ${nameEsc}</p>

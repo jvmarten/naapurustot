@@ -77,10 +77,14 @@ const MiB = 1024 * 1024;
 // and raise it in the same commit that adds a country's pages (Norway's ~14,000 grunnkretser
 // × 3 languages would be ~42,000 pages, ~1.5 min more sync). deploy.yml writes each run's
 // file count and sync time to the run summary, so the next raise starts from a measurement.
+//
+// 2026-11-04, Swedish kommun pages (265 × 3 = 795 pages, ~10 MB; SWEDEN_EXPANSION.md §19):
+// pages profile measured 960.6 MB / 59,952 files, just over the 960 MB budget the region
+// hubs had left it at (950.7 MB). Raised to 1,060 MB, ~10 % over the measured mesh.
 const PROFILES = {
   pages: {
     hard: true,
-    budget: 960 * MiB,
+    budget: 1060 * MiB,
     fileBudget: 66_000,
     label: 'Prerendered page mesh (pre-rasterize)',
   },

@@ -16,7 +16,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, existsSync } from 'fs';
-import { loadSeRegions, buildSeRegionHub, buildSeDirectorySection } from './prerender-hubs-se.mjs';
+import { loadSeRegions, loadSeMunicipalities, buildSeRegionHub, buildSeMunicipalityHub, buildSeDirectorySection } from './prerender-hubs-se.mjs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
@@ -177,7 +177,7 @@ const safeJson = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
 /** What the Swedish hubs borrow from this file (a function: some of it is defined below). */
 function seHubHelpers() {
   return { escapeHtml, fmtNum, getRegionName, toSlug, htmlPage, safeJson, cityUrl, dirUrl,
-    LOCALES, LOCALE_TAG, ORIGIN, TEXT, AREA_PREFIX, CITY_PREFIX, DIRECTORY_PATH };
+    muniUrl, LOCALES, LOCALE_TAG, ORIGIN, TEXT, AREA_PREFIX, CITY_PREFIX, DIRECTORY_PATH, MUNI_PREFIX };
 }
 
 // CF-11b: localized Dataset name/description for the hub-page Dataset JSON-LD.
@@ -663,6 +663,11 @@ const MUNI_OUT = {
   en: (slug) => join(DIST, 'en', 'municipality', slug),
   sv: (slug) => join(DIST, 'sv', 'kommun', slug),
 };
+
+// Sweden's kommun pages share the /kunta/ routes; a slug a Finnish municipality already
+// uses (or could, before its collision suffix) is never handed to a Swedish kommun.
+const seMunicipalities = loadSeMunicipalities(seRegions, slugify,
+  new Set([...muniSlugCounts.keys(), ...municipalities.map((m) => m.slug)]));
 
 function cityUrl(id, lang) { return `${ORIGIN}${CITY_PREFIX[lang]}/${id}/`; }
 function dirUrl(lang) { return `${ORIGIN}${DIRECTORY_PATH[lang]}`; }
@@ -1697,8 +1702,18 @@ for (const muni of municipalities) {
   muniManifest.push(muniAlternates(muni.slug));
   muniCount++;
 }
+console.log(`Prerendered ${muniCount} municipality hubs (${muniCount * 3} HTML files).`);
+
+for (const muni of seMunicipalities) {
+  for (const lang of LANGS) {
+    const dir = MUNI_OUT[lang](muni.slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildSeMunicipalityHub(muni, lang, seHubHelpers()));
+  }
+  muniManifest.push(muniAlternates(muni.slug));
+}
 writeFileSync(join(DIST, 'kunnat-pages.json'), JSON.stringify(muniManifest));
-console.log(`Prerendered ${muniCount} municipality hubs (${muniCount * 3} HTML files; manifest → dist/kunnat-pages.json).`);
+console.log(`Prerendered ${seMunicipalities.length} Swedish kommun pages (${seMunicipalities.length * 3} HTML files; manifest → dist/kunnat-pages.json).`);
 
 // CF-12: ranking pages — national top-50 + per-region top-15 per metric (×3 langs).
 // Emits a manifest of {fi,en,sv} alternates so generate-sitemap.mjs lists exactly

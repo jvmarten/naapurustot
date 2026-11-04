@@ -187,7 +187,7 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   as §3.2 first planned. DeSO polygons are cut to OSM's land polygons before
   simplifying (`scripts/se/clip_deso_land.py`), because SCB's run out to sea where
   Paavo's stop at the shore.
-- **Not yet:** Swedish ranking and municipality pages. (Region hubs landed in §18, history in §16.)
+- **Not yet:** Swedish ranking pages. (Region hubs landed in §18, kommun pages in §19, history in §16.)
 
 ## 8. Quality index for Sweden (2026-10-27)
 
@@ -484,7 +484,7 @@ joins the two only where a 2025 area IS its 2018 namesake, decided from SCB's ow
   (`RADAR_METRICS_BY_COUNTRY` in `rangeKeys.ts`). Housing is Finland's €/m², which no
   Swedish area has, so it shows as "no data" rather than a guessed value.
 - **Still Finland-only:** the fit badge (the wizard scores Paavo-shaped metrics: daycare,
-  child share, foreign language) and ranking/municipality pages.
+  child share, foreign language) and ranking pages (kommun pages landed in §19).
 
 ## 18. Region hubs (2026-11-03)
 
@@ -496,9 +496,34 @@ DeSO in it, by population, linked to its profile page. The directory page (`/kau
 gains a Sweden table, the sitemap's hub family lists the 71 regions, and every Swedish
 profile page's breadcrumb now points at its hub instead of the map.
 
-Deliberately region hubs only: no municipality pages (290 kommuner × 3), no ranking or
+Deliberately region hubs only at first (kommun pages followed in §19): no ranking or
 comparison pages (each needs a choice of which Swedish metrics to rank), and no social
 cards (rasterized every deploy). Stockholm's hub is the largest page at 284 KB raw /
 50 KB gzipped for 1,300+ rows; it lists every area because those rows are the crawl path
 to the profile pages.
+
+## 19. Kommun pages (2026-11-04)
+
+`buildSeMunicipalityHub` in `scripts/prerender-hubs-se.mjs` writes one page per kommun at
+Finland's municipality routes (`/kunta/<slug>/`, `/en/municipality/…`, `/sv/kommun/…`):
+265 kommuner × 3 = 795 pages, listed in `kunnat-pages.json` and so in the `kunta` sitemap.
+The published tree went from 59,157 to 59,952 files (budget 66,000).
+
+- **Which kommuner.** Finland's rule: a region holding a single kommun gets no kommun page,
+  because its region hub already is that page (25 of 71 FA25 regions, e.g. Gotland). The
+  other 46 regions' 265 kommuner each get one, and the region hub's kommun list links them.
+- **Slugs.** `slugify` of SCB's name. A slug two kommuner share (Habo 0643 and Håbo 0305
+  both give `habo`) or that any Finnish municipality already uses takes the kommun code on
+  every kommun sharing it: `habo-0643`, `habo-0305`. No Finnish slug collides today; the
+  check is there so a renamed or added municipality can never overwrite a page.
+- **Figures.** Each page lists the kommun's DeSOs (population, median economic standard)
+  like the region hub, plus a "kommun in figures" table of the per-kommun values the
+  pipeline already writes onto every DeSO (mean age, house price, rent, jobs per employed
+  resident, pensioners 65–74, ohälsotal, broadband, population projection). A row is shown
+  only when every DeSO of the kommun carries the same value, so it is the published
+  kommun figure read back. Where a source is finer than the kommun (rent in Stockholm's
+  and Malmö's districts) the values differ and the row is dropped rather than averaged.
+  Nothing is summed or averaged here; there is no kommun-level economic standard median
+  because SCB's DeSO medians cannot be combined into one.
+- **Still not built:** Swedish ranking and comparison pages, and social cards.
 
