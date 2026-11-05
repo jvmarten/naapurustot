@@ -18,6 +18,9 @@ import type { Feature } from 'geojson';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { computeQualityIndices } from '../utils/qualityIndex';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import { parseSlug, toSlug } from '../utils/slug';
 import {
   parseTrendSeries,
@@ -103,7 +106,7 @@ describe('filterSmallIslands invariants', () => {
         coordinates: [[[24.9, 60.2], [24.95, 60.2], [24.95, 60.25], [24.9, 60.25], [24.9, 60.2]]],
       },
     };
-    const [out] = filterSmallIslands([original]);
+    const [out] = filterSmallIslands([original], RELATIVE_ONLY);
     // Same geometry instance preserved (no copy, no wrapping in MultiPolygon).
     expect(out.geometry).toBe(original.geometry);
   });
@@ -117,7 +120,7 @@ describe('filterSmallIslands invariants', () => {
         coordinates: [[[[24.9, 60.2], [24.95, 60.2], [24.95, 60.25], [24.9, 60.25], [24.9, 60.2]]]],
       },
     };
-    const [out] = filterSmallIslands([original]);
+    const [out] = filterSmallIslands([original], RELATIVE_ONLY);
     expect(out.geometry).toBe(original.geometry);
   });
 
@@ -132,7 +135,7 @@ describe('filterSmallIslands invariants', () => {
         coordinates: [big, tiny],
       },
     };
-    const [out] = filterSmallIslands([original]);
+    const [out] = filterSmallIslands([original], RELATIVE_ONLY);
     expect(out.geometry.type).toBe('Polygon');
     expect((out.geometry as GeoJSON.Polygon).coordinates).toEqual(big);
   });
@@ -145,7 +148,7 @@ describe('filterSmallIslands invariants', () => {
       properties: { pno: '00100' },
       geometry: { type: 'MultiPolygon', coordinates: [a, b] },
     };
-    const [out] = filterSmallIslands([original]);
+    const [out] = filterSmallIslands([original], RELATIVE_ONLY);
     expect(out.geometry.type).toBe('MultiPolygon');
     expect((out.geometry as GeoJSON.MultiPolygon).coordinates).toHaveLength(2);
   });
@@ -156,7 +159,7 @@ describe('filterSmallIslands invariants', () => {
       properties: { pno: '00100' },
       geometry: { type: 'Point', coordinates: [24.9, 60.2] },
     };
-    const [out] = filterSmallIslands([pt]);
+    const [out] = filterSmallIslands([pt], RELATIVE_ONLY);
     expect(out).toBe(pt);
   });
 });

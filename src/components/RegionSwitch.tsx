@@ -13,6 +13,8 @@ const BTN = 'flex-1 px-3 min-h-[44px] md:min-h-[32px] rounded-lg text-sm font-se
 interface RegionSwitchPromptProps {
   /** Region id the user tapped (a seutukunta not currently on the map). */
   region: string;
+  /** Display name, when `region` is not a region id (a country tapped in a country's view). */
+  name?: string;
   /** How many regions are on the map now — 1 offers "show both", more "add to map". */
   shownCount: number;
   onSwitch: () => void;
@@ -22,12 +24,14 @@ interface RegionSwitchPromptProps {
 
 /**
  * Card offered after a tap on a neighbouring seutukunta in a region view: switch the
- * map to it, or show its postal-code areas alongside the current ones. The name gets a
+ * map to it, or show its postal-code areas alongside the current ones. The same card
+ * serves a tap on the other country in one country's national view (switch to that
+ * country, or show both). The name gets a
  * row of its own so a long one ("Saarijärven–Viitasaaren seutu") is never truncated on
  * a phone. A labelled group, not a dialog — it never takes focus from the map
  * (arrow-key panning), and App announces it through the shared live region.
  */
-export function RegionSwitchPrompt({ region, shownCount, onSwitch, onAdd, onClose }: RegionSwitchPromptProps) {
+export function RegionSwitchPrompt({ region, name, shownCount, onSwitch, onAdd, onClose }: RegionSwitchPromptProps) {
   return (
     <div
       role="group"
@@ -36,7 +40,7 @@ export function RegionSwitchPrompt({ region, shownCount, onSwitch, onAdd, onClos
                  bg-white dark:bg-surface-900 text-surface-900 dark:text-white ring-1 ring-surface-200 dark:ring-surface-700"
     >
       <div className="flex items-center gap-2 pl-1">
-        <span id="region-switch-name" className="flex-1 min-w-0 truncate text-sm font-semibold">{t('city.' + region)}</span>
+        <span id="region-switch-name" className="flex-1 min-w-0 truncate text-sm font-semibold">{name ?? t('city.' + region)}</span>
         <button
           type="button"
           onClick={onClose}
@@ -101,5 +105,33 @@ export function RegionChips({ regions, onRemove }: RegionChipsProps) {
         );
       })}
     </div>
+  );
+}
+
+interface BackToScopeProps {
+  /** Label of the national view to return to: "Suomi", "Ruotsi" or "Maailma". */
+  name: string;
+  onBack: () => void;
+}
+
+/**
+ * The way back out of a region view to the national view it was entered from — the
+ * reverse of the panel's "explore areas" button, which otherwise has no counterpart
+ * short of reopening the region selector. Under the search bar, beside the region chips.
+ */
+export function BackToScope({ name, onBack }: BackToScopeProps) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      className="mt-1.5 inline-flex items-center gap-1 max-w-full pl-2 pr-3 min-h-[44px] md:min-h-[30px] rounded-full text-xs font-semibold shadow
+                 bg-white dark:bg-surface-900 text-brand-700 dark:text-brand-300 ring-1 ring-surface-200 dark:ring-surface-700
+                 hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+    >
+      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+      </svg>
+      <span className="truncate">{t('region_switch.back').replace('{name}', name)}</span>
+    </button>
   );
 }

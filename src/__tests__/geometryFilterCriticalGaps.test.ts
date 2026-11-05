@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature, MultiPolygon, Polygon } from 'geojson';
 
 function makePolygonFeature(coords: number[][][]): Feature<Polygon> {
@@ -26,13 +29,13 @@ const tinySquare = [[10, 10], [10.1, 10], [10.1, 10.1], [10, 10.1], [10, 10]];
 describe('filterSmallIslands — threshold behavior', () => {
   it('keeps all polygons when only one exists in MultiPolygon', () => {
     const feature = makeMultiPolygonFeature([[unitSquare]]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('MultiPolygon');
   });
 
   it('removes tiny polygon below 15% threshold', () => {
     const feature = makeMultiPolygonFeature([[unitSquare], [tinySquare]]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // tinySquare is ~1% of unitSquare → removed
     // Only 1 polygon remains → converted to Polygon
     expect(result[0].geometry.type).toBe('Polygon');
@@ -45,7 +48,7 @@ describe('filterSmallIslands — threshold behavior', () => {
     // To be safe, use side=0.4 → area = 0.5*0.4^2 = 0.08 > 0.075
     const above15 = [[40, 40], [40.4, 40], [40.4, 40.4], [40, 40.4], [40, 40]];
     const feature = makeMultiPolygonFeature([[unitSquare], [above15]]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Should keep both (>= 15%)
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates.length).toBe(2);
@@ -54,13 +57,13 @@ describe('filterSmallIslands — threshold behavior', () => {
   it('preserves properties after filtering', () => {
     const feature = makeMultiPolygonFeature([[unitSquare], [tinySquare]]);
     feature.properties = { name: 'Kallio', pno: '00530' };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].properties).toEqual({ name: 'Kallio', pno: '00530' });
   });
 
   it('does not modify plain Polygon features', () => {
     const feature = makePolygonFeature([unitSquare]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature); // same reference
   });
 
@@ -71,7 +74,7 @@ describe('filterSmallIslands — threshold behavior', () => {
     // Net area = 50 - 18 = 32
     // Tiny polygon area = 0.01
     const feature = makeMultiPolygonFeature([[outer, hole], [tinySquare]]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // tinySquare is way below 15% of 32 → removed
     expect(result[0].geometry.type).toBe('Polygon');
   });
@@ -81,7 +84,7 @@ describe('filterSmallIslands — threshold behavior', () => {
       makeMultiPolygonFeature([[unitSquare], [tinySquare]]),
       makePolygonFeature([unitSquare]),
     ];
-    const result = filterSmallIslands(features);
+    const result = filterSmallIslands(features, RELATIVE_ONLY);
     // First feature gets filtered, second stays as-is
     expect(result[0].geometry.type).toBe('Polygon');
     expect(result[1].geometry.type).toBe('Polygon');

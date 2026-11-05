@@ -6,6 +6,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { getFeatureCenter, filterSmallIslands } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature, Point, Polygon, MultiPolygon } from 'geojson';
 
 describe('getFeatureCenter', () => {
@@ -119,7 +122,7 @@ describe('filterSmallIslands — area calculation', () => {
       },
     };
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('Polygon');
   });
 
@@ -141,7 +144,7 @@ describe('filterSmallIslands — area calculation', () => {
       },
     };
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Both polygons should survive (0.25 / 0.96 ≈ 26% > 15%)
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates.length).toBe(2);

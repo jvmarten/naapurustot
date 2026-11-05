@@ -842,6 +842,45 @@ export function mapQuantile(v: number, from: number[], to: number[]): number {
   return to[i] + t * (to[i + 1] - to[i]);
 }
 
+/** `sorted` (ascending) as a 101-point p0..p100 quantile curve, for mapQuantile. */
+function quantileCurve(sorted: number[]): number[] {
+  const n = sorted.length - 1;
+  return Array.from({ length: 101 }, (_, i) => sorted[Math.round((i / 100) * n)]);
+}
+
+/**
+ * The region scope's counterpart of the national calibration. "Within these regions"
+ * ranges each country against its own loaded areas, so with regions of two countries
+ * on the map both composites are within-country standings — but on two levels, since
+ * each country's composite is built from a different factor mix (Sweden's ran ~6 points
+ * lower over Stockholm + Helsinki). One colour ramp and one ranking over both would
+ * then rank the factor mix, not the places. So, as nationally, every other country's
+ * loaded composites are mapped by quantile onto HOME's loaded ones. Default weights
+ * only (a custom lens is shown uncalibrated, as nationally), and only when HOME is
+ * among the loaded areas — a one-country set is left as computed.
+ */
+function calibrateWithinLoaded(features: GeoJSON.Feature[]): void {
+  const byCountry = new Map<CountryId, number[]>();
+  for (const f of features) {
+    const p = f.properties as NeighborhoodProperties;
+    if (typeof p.quality_index !== 'number') continue;
+    const c = countryOfId(p.pno);
+    let list = byCountry.get(c);
+    if (!list) byCountry.set(c, (list = []));
+    list.push(p.quality_index);
+  }
+  const home = byCountry.get(HOME_COUNTRY);
+  if (!home || byCountry.size < 2) return;
+  const to = quantileCurve(home.sort((a, b) => a - b));
+  const curves = new Map<CountryId, number[]>();
+  for (const [c, list] of byCountry) if (c !== HOME_COUNTRY) curves.set(c, quantileCurve(list.sort((a, b) => a - b)));
+  for (const f of features) {
+    const p = f.properties as NeighborhoodProperties;
+    const from = typeof p.quality_index === 'number' ? curves.get(countryOfId(p.pno)) : undefined;
+    if (from) p.quality_index = Math.round(mapQuantile(p.quality_index as number, from, to) * 10) / 10;
+  }
+}
+
 function getFactorScore(
   p: NeighborhoodProperties,
   factor: QualityFactor,
@@ -1025,6 +1064,8 @@ export function computeQualityIndices(
       (f.properties as NeighborhoodProperties).quality_dimension_scores = dimScores;
     }
   }
+
+  if (!nationalRanges && !isCustomWeights(w)) calibrateWithinLoaded(features);
 
   // The displayed number is a presentation of the composite, selectable in Settings.
   // applyQualityScale also hands this cohort to qualityBands, so the category labels

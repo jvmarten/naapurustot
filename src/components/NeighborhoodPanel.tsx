@@ -32,6 +32,7 @@ import { useNotes } from '../hooks/useNotes';
 import { FitForYouBadge } from './FitForYouBadge';
 import type { WizardAnswers } from '../hooks/useWizardProfile';
 import { countryOfId, type CountryId } from '../utils/areaId';
+import { regionCountry } from '../utils/countries';
 
 /** QW-5: per-language profile-page path so EN/SV users reach the localized URL
  *  (/en/area/, /sv/omrade/) instead of the Finnish /alue/ one. Shared by the panel's
@@ -84,6 +85,8 @@ interface PanelProps {
   onSetReference?: (pno: string | null) => void;
   /** CF-8: which range the Quality Index was normalized against. */
   qualityScope?: 'national' | 'region';
+  /** Several regions on the map: the region scope spans all of them ("within these regions"). */
+  qualityScopeMulti?: boolean;
   /** Callback to navigate to postal code view for a metro area */
   onExploreCity?: (cityId: string) => void;
   /** Authenticated user id — enables cloud-synced notes when set */
@@ -807,7 +810,7 @@ QualityBadge.displayName = 'QualityBadge';
 // flagship number auditable by showing how many of the evaluative factors had
 // data for this specific area, grouped by dimension, with missing factors struck
 // through. A low "X/Y" chip flags a confident-looking score built on few inputs.
-const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 'national' | 'region'; qualityWeights?: QualityWeights }> = React.memo(({ props, scope = 'national', qualityWeights }) => {
+const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 'national' | 'region'; multi?: boolean; qualityWeights?: QualityWeights }> = React.memo(({ props, scope = 'national', multi = false, qualityWeights }) => {
   useI18nVersion();
   const [open, setOpen] = useState(false);
   const lang = getLang();
@@ -857,7 +860,9 @@ const QualityCoverageSection: React.FC<{ props: NeighborhoodProperties; scope?: 
           {/* CF-8: which national-vs-region range the score was normalized against */}
           <p className="text-[11px] leading-snug text-surface-500 dark:text-surface-400">
             <span className="text-surface-500 dark:text-surface-400">{t('panel.quality_scope_label')}:</span>{' '}
-            {t(scope === 'region' ? 'panel.quality_scope_region' : 'panel.quality_scope_national')}
+            {/* National scope means the area's OWN country: a Swedish area is scored against Sweden. */}
+            {t(scope === 'region' ? (multi ? 'scope.region_multi' : 'panel.quality_scope_region')
+              : countryOfId(props.pno) === 'se' ? 'panel.quality_scope_national_se' : 'panel.quality_scope_national')}
           </p>
           {coverage.dimensions.map((dim) => {
             const score = dimScores[dim.id];
@@ -969,7 +974,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', qualityScopeMulti = false, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
   // QW-4: capture the i18n version so memos that build translated strings (the
   // MOBILE_SECTIONS tab labels) recompute on a language switch / lazy-dict arrival.
   const i18nVersion = useI18nVersion();
@@ -1490,7 +1495,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       )}
 
       {/* CF-8: Quality Index auditability — factor coverage for this area */}
-      {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} qualityWeights={qualityWeights} />}
+      {d.quality_index != null && <QualityCoverageSection props={d} scope={qualityScope} multi={qualityScopeMulti} qualityWeights={qualityWeights} />}
 
       {/* CF-2: auto-composed plain-language strengths & weaknesses from real percentiles,
           each area against its own country's ladders. */}
@@ -2252,7 +2257,8 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
       </svg>
-      {t('panel.explore_postal_codes')}
+      {/* Sweden's areas are SCB DeSOs, not postal codes: name them by what they are. */}
+      {t(regionCountry(String(d.city)) === 'se' ? 'panel.explore_postal_codes_se' : 'panel.explore_postal_codes')}
     </button>
   ) : null;
 

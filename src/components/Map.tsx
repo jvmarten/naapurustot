@@ -11,7 +11,7 @@ import { hasGridCells } from '../hooks/useGridData';
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { useTheme } from '../hooks/useTheme';
 import { trackEvent } from '../utils/analytics';
-import { t, useI18nVersion } from '../utils/i18n';
+import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../utils/mapConstants';
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
@@ -238,11 +238,48 @@ const PLANNING_OUTLINE_LAYER = 'planning-outline';
 const PLANNING_PROJECT_LAYER = 'planning-project';
 const PLANNING_LAYER_IDS = [PLANNING_FILL_LAYER, PLANNING_OUTLINE_LAYER, PLANNING_PROJECT_LAYER];
 // Plan status palette (Ryhti lifecycle); project type palette.
+const PLAN_STATUS_HEX: Record<string, string> = {
+  vireilla: '#f59e0b', luonnos: '#3b82f6', ehdotus: '#6366f1', hyvaksytty: '#10b981', voimassa: '#94a3b8',
+};
+const PROJECT_TYPE_HEX: Record<string, string> = { road: '#f97316', rail: '#a855f7', waterway: '#06b6d4' };
 const PLAN_STATUS_COLOR = ['match', ['get', 'status'],
-  'vireilla', '#f59e0b', 'luonnos', '#3b82f6', 'ehdotus', '#6366f1',
-  'hyvaksytty', '#10b981', 'voimassa', '#94a3b8', '#f59e0b'] as const;
+  ...Object.entries(PLAN_STATUS_HEX).flat(), '#f59e0b'] as const;
 const PROJECT_TYPE_COLOR = ['match', ['get', 'ptype'],
-  'road', '#f97316', 'rail', '#a855f7', 'waterway', '#06b6d4', '#f97316'] as const;
+  ...Object.entries(PROJECT_TYPE_HEX).flat(), '#f97316'] as const;
+
+/** A plan's or project's swatch colour — the same one its map layer paints. */
+function planningColor(p: Record<string, string>): string {
+  return (p.kind === 'project' ? PROJECT_TYPE_HEX[p.ptype] ?? '#f97316' : PLAN_STATUS_HEX[p.status] ?? '#f59e0b');
+}
+
+/** "2026-02-02" in the reader's language; anything else (a year span) as published. */
+function formatPlanDate(d: string | undefined): string {
+  if (!d) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const date = new Date(`${d}T12:00:00Z`);
+  return isNaN(date.getTime()) ? d : date.toLocaleDateString(getLang(), { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** The planning popup's card. Every interpolated value is escaped; only http(s) links. */
+function planningPopupHtml(p: Record<string, string>): string {
+  const color = planningColor(p);
+  const typeLabel = t(`panel.plan_type_${p.ptype}`) || p.subtype || '';
+  const statusLabel = t(`panel.plan_status_${p.status}`);
+  const date = formatPlanDate(p.date);
+  const source = escapeAttr(p.source || '');
+  const link = p.url && /^https?:\/\//.test(p.url)
+    ? `<a class="plan-pop-link" href="${escapeAttr(p.url)}" target="_blank" rel="noopener noreferrer">${source || escapeAttr(new URL(p.url).hostname)}<span aria-hidden="true"> ↗</span></a>`
+    : source ? `<span class="plan-pop-source">${source}</span>` : '';
+  return `<div class="plan-pop">`
+    + `<div class="plan-pop-kicker"><span class="plan-pop-swatch" style="background:${color}"></span>${escapeAttr(typeLabel)}</div>`
+    + `<div class="plan-pop-title">${escapeAttr(p.name || '')}</div>`
+    + `<div class="plan-pop-meta">`
+    + (statusLabel ? `<span class="plan-pop-status" style="--plan-c:${color}">${escapeAttr(statusLabel)}</span>` : '')
+    + (date ? `<span class="plan-pop-date">${escapeAttr(date)}</span>` : '')
+    + `</div>`
+    + (link ? `<div class="plan-pop-foot">${link}</div>` : '')
+    + `</div>`;
+}
 
 // CF-5 Phase D1: Finland-wide seutukunta boundary line layer. The data-less
 // gray fills are NOT a separate layer — they are emitted as _noData features
@@ -895,6 +932,8 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     return () => { map.off('load', apply); };
   }, [isochrone]);
 
+  // The open plan/project card, if any (the click effect below opens it).
+  const planningPopupRef = useRef<maplibregl.Popup | null>(null);
   // CF-2: kaavat & hankkeet overlay. Additive layers above the choropleth fill,
   // below selection borders. Plan polygons fill by Ryhti status; project lines
   // color by type. Cloned from the isochrone effect (mapStyleLoadedRef gate +
@@ -904,6 +943,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     if (!map) return;
     const apply = () => {
       const remove = () => {
+        planningPopupRef.current?.remove();
         for (const l of PLANNING_LAYER_IDS) if (map.getLayer(l)) map.removeLayer(l);
         if (map.getSource(PLANNING_SOURCE_ID)) map.removeSource(PLANNING_SOURCE_ID);
       };
@@ -982,16 +1022,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       if (layers.length === 0) return;
       const f = queryFeaturesSafe(map, e.point, layers)[0];
       if (!f) return;
-      const p = f.properties as Record<string, string>;
-      const typeLabel = t(`panel.plan_type_${p.ptype}`);
-      const statusLabel = t(`panel.plan_status_${p.status}`);
-      const meta = [typeLabel, statusLabel, p.date].filter(Boolean).map(escapeAttr).join(' · ');
-      const link = p.url
-        ? `<a href="${escapeAttr(p.url)}" target="_blank" rel="noopener noreferrer">${escapeAttr(p.source || '')}</a>`
-        : escapeAttr(p.source || '');
-      new maplibregl.Popup({ closeButton: true, maxWidth: '260px' })
+      // One card at a time: a second plan click replaces the first rather than stacking.
+      planningPopupRef.current?.remove();
+      planningPopupRef.current = new maplibregl.Popup({ closeButton: true, maxWidth: '280px', className: 'plan-popup', focusAfterOpen: false })
         .setLngLat(e.lngLat)
-        .setHTML(`<div style="font-size:12px;line-height:1.4"><strong>${escapeAttr(p.name || '')}</strong><br>${meta}<br>${link}</div>`)
+        .setHTML(planningPopupHtml(f.properties as Record<string, string>))
         .addTo(map);
     };
     // Map-level click, NOT a layer-scoped `on('click', LAYER, …)` delegate. The
@@ -1005,6 +1040,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     map.on('click', onPlanningClick);
     return () => {
       map.off('click', onPlanningClick);
+      planningPopupRef.current?.remove();
     };
   }, []);
 
@@ -1492,6 +1528,11 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
       if (!isStyleAlive(map)) return;
       if (!map.getSource(SOURCE_ID)) return;
+      // A click on a plan or project opens its card (onPlanningClick) and nothing else:
+      // the postal area under it is not selected, and no region prompt opens. Select
+      // mode is the exception — there the user is picking areas, not reading plans.
+      const planning = PLANNING_LAYER_IDS.filter((l) => map.getLayer(l));
+      if (!selectModeRef.current && planning.length > 0 && queryFeaturesSafe(map, e.point, planning).length > 0) return;
       const features = queryNeighborhoodsAt(map, e.point);
       if (features.length > 0) {
         const props = features[0].properties as NeighborhoodProperties;
@@ -1506,14 +1547,12 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
       // Region view: a click on no postal area may be on a neighbouring seutukunta
       // (resolved against the outlines already parsed for the boundary line — no
-      // hit-test layer). Not in select mode; not on a planning feature (a road or rail
-      // line runs on past the region's postal areas and opens its own popup); and not
-      // within the touch ring of a drawn area, because the outlines are generalised
-      // (1:1,000,000) and a click in the region's own bay can land in a neighbour's.
+      // hit-test layer). Not in select mode; not on a planning feature (returned above:
+      // a road or rail line runs on past the region's postal areas and opens its own
+      // popup); and not within the touch ring of a drawn area, because the outlines are
+      // generalised (1:1,000,000) and a click in the region's own bay can land in a neighbour's.
       const onRegion = onRegionClickRef.current;
       if (!onRegion || selectModeRef.current) return;
-      const planning = PLANNING_LAYER_IDS.filter((l) => map.getLayer(l));
-      if (planning.length > 0 && queryFeaturesSafe(map, e.point, planning).length > 0) return;
       if (!COARSE_POINTER && queryNeighborhoodsAt(map, e.point, true).length > 0) return;
       const outlines = getRegionOutlines();
       if (!outlines) void loadRegionOutlines(); // a failed idle load retries on the next tap

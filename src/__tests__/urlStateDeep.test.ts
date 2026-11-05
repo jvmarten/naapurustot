@@ -173,7 +173,7 @@ describe('useSyncUrlState', () => {
     expect(lastCall[2]).toBe('/?compare=00200%2C00300');
   });
 
-  it('omits city from URL when it is all (default landing view)', () => {
+  it('omits city from URL when it is fi (default landing view)', () => {
     // Set search to something non-empty so writeUrl actually calls replaceState
     Object.defineProperty(window, 'location', {
       value: { search: '?city=all', hash: '', pathname: '/' },
@@ -181,7 +181,7 @@ describe('useSyncUrlState', () => {
       configurable: true,
     });
     replaceStateSpy.mockClear();
-    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all'));
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'fi'));
     vi.advanceTimersByTime(150);
     const lastCall = replaceStateSpy.mock.calls[replaceStateSpy.mock.calls.length - 1];
     const url = lastCall[2] as string;

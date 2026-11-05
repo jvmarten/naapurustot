@@ -9,6 +9,9 @@ import { describe, it, expect } from 'vitest';
 import { toSlug, parseSlug } from '../utils/slug';
 import { formatNumber, formatEuro, formatPct, formatDiff, escapeHtml, diffColor } from '../utils/formatting';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import { LAYERS, getLayerById, getColorForValue, rescaleLayerToData, buildFillColorExpression, LAYER_MAP } from '../utils/colorScales';
 import { computeQualityIndices } from '../utils/qualityIndex';
 import { computeMetroAverages, computeChangeMetrics, computeQuickWinMetrics } from '../utils/metrics';
@@ -117,7 +120,7 @@ describe('filterSmallIslands', () => {
       properties: {},
     };
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Tiny polygon should be removed, leaving a Polygon (not MultiPolygon)
     expect(result[0].geometry.type).toBe('Polygon');
   });
@@ -132,7 +135,7 @@ describe('filterSmallIslands', () => {
       properties: {},
     };
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates).toHaveLength(2);
   });
@@ -144,7 +147,7 @@ describe('filterSmallIslands', () => {
       properties: {},
     };
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature); // Same reference
   });
 });

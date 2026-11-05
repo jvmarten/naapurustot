@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature, MultiPolygon, Polygon } from 'geojson';
 
 function makePolygon(coords: number[][][]): Feature<Polygon> {
@@ -36,7 +39,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       square(10),
       square(1, 20, 20),
     ]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('Polygon');
   });
 
@@ -46,7 +49,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       square(10),
       square(8, 20, 20), // area 64 is 64% of 100, above 15%
     ]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates.length).toBe(2);
   });
@@ -63,7 +66,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       polyWithHole,
       square(1, 20, 20), // tiny island
     ]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // The tiny island (area 1) is < 15% of 75, so it should be filtered
     expect(result[0].geometry.type).toBe('Polygon');
   });
@@ -80,7 +83,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       },
       properties: { pno: '00100', nimi: 'Kallio', quality_index: 75 },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].properties).toEqual({ pno: '00100', nimi: 'Kallio', quality_index: 75 });
   });
 
@@ -92,7 +95,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       [[0, 0], [3.873, 0], [3.873, 3.873], [0, 3.873], [0, 0]],
     ];
     const feature = makeMultiPolygon([main, secondary]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Should keep both (>= 15% threshold)
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates.length).toBe(2);
@@ -104,7 +107,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       makePolygon(square(5)), // single polygon, unchanged
       makeMultiPolygon([square(10), square(9, 20, 20)]), // both kept (81% of 100)
     ];
-    const result = filterSmallIslands(features);
+    const result = filterSmallIslands(features, RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('Polygon'); // tiny island removed
     expect(result[1].geometry.type).toBe('Polygon'); // unchanged
     expect(result[2].geometry.type).toBe('MultiPolygon'); // both kept
@@ -117,7 +120,7 @@ describe('filterSmallIslands — deep edge cases', () => {
       geometry: { type: 'Point', coordinates: [0, 0] },
       properties: {},
     };
-    const result = filterSmallIslands([point]);
+    const result = filterSmallIslands([point], RELATIVE_ONLY);
     expect(result[0]).toBe(point); // same reference
   });
 });

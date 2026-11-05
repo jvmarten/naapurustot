@@ -6,7 +6,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, useReducer, l
 // parse instead of serializing behind it. maplibre-* is excluded from the bundle-budget
 // gate, so this is budget-neutral. Declared with the other lazy components below.
 import { DEFAULT_CENTER, DEFAULT_ZOOM, CITY_VIEWPORTS } from './utils/mapConstants';
-import { REGION_IDS, DEFAULT_CITY, type RegionId } from './utils/regions';
+import { REGION_IDS, DEFAULT_CITY, DEFAULT_VIEW, type RegionId } from './utils/regions';
 import { COUNTRY_IDS, HOME_COUNTRY, regionCountry } from './utils/countries';
 import type { CountryId } from './utils/areaId';
 import { loadRegionData, loadAllData } from './utils/dataLoader';
@@ -16,7 +16,7 @@ import { ContactMenu } from './components/ContactMenu';
 import { CitySelector, type CityFilter, type ScopeId } from './components/CitySelector';
 import { ComparisonScopeToggle, type ComparisonScope } from './components/ComparisonScopeToggle';
 import { TooltipOverlay } from './components/TooltipOverlay';
-import { RegionSwitchPrompt, RegionChips } from './components/RegionSwitch';
+import { RegionSwitchPrompt, RegionChips, BackToScope } from './components/RegionSwitch';
 import { regionReducer, displayedRegions, regionKey, regionsViewport, averagesByRegion } from './utils/regionSet';
 import { getRegionOutlines, regionAt } from './utils/regionHit';
 import { setTooltipData } from './utils/tooltipStore';
@@ -256,6 +256,10 @@ const App: React.FC = () => {
     if (initialUrl.lang) void setLang(initialUrl.lang);
   }
 
+  // A URL naming no `city` lands on the national view of Finland (DEFAULT_VIEW); World,
+  // both countries, is `city=all`. A deep-linked ?pno= is routed to its own region below.
+  const initialCountry: CountryId | undefined = initialUrl.country ?? (initialUrl.city == null ? DEFAULT_VIEW : undefined);
+
   // City filter — declared before useMapData so the hook can load the right region.
   // `city` is the primary region (or 'all'); `extra` are regions shown alongside it
   // (`city=helsinki_metro,lahti`, added from the region-tap prompt). Dispatching a bare
@@ -264,7 +268,7 @@ const App: React.FC = () => {
   const [regionSel, setCityFilter] = useReducer(regionReducer, {
     city: (initialUrl.city as CityFilter) ?? DEFAULT_CITY,
     extra: initialUrl.extraCities,
-    ...(initialUrl.country ? { country: initialUrl.country } : {}),
+    ...(initialCountry ? { country: initialCountry } : {}),
   });
   const cityFilter = regionSel.city;
   const extraRegions = regionSel.extra;
@@ -453,6 +457,18 @@ const App: React.FC = () => {
     if (cityFilter === 'all') return countryScope ? [countryScope] : [...COUNTRY_IDS];
     return [...new Set(displayed.map(regionCountry))];
   }, [cityFilter, countryScope, displayed]);
+  // The national view a region view returns to (BackToScope): the one last shown, while
+  // it still holds what is on the map — World always does, a country only its own regions.
+  // A region view reached directly (deep link) returns to its own country.
+  const [lastNationalScope, setLastNationalScope] = useState<ScopeId | null>(null);
+  useEffect(() => {
+    if (cityFilter === 'all') setLastNationalScope(countryScope ?? 'all');
+  }, [cityFilter, countryScope]);
+  const backScope: ScopeId = lastNationalScope && (lastNationalScope === 'all' || dataCountries.every((c) => c === lastNationalScope))
+    ? lastNationalScope
+    : dataCountries.length === 1 ? dataCountries[0] : 'all';
+  // Regions of both countries on the map (a mixed multi-region view).
+  const mixedCountries = cityFilter !== 'all' && dataCountries.length > 1;
   useEffect(() => {
     if (viewCountry && !layerInCountry(activeLayer, viewCountry)) setActiveLayerRaw(DEFAULT_LAYER_BY_COUNTRY[viewCountry]);
   }, [viewCountry, activeLayer]);
@@ -573,8 +589,8 @@ const App: React.FC = () => {
       return { center: initialUrl.viewport.center, zoom: initialUrl.viewport.zoom };
     }
     const city = (initialUrl.city as CityFilter) ?? DEFAULT_CITY;
-    const vp = initialUrl.country
-      ? regionsViewport(REGION_IDS.filter((id) => regionCountry(id) === initialUrl.country))
+    const vp = initialCountry
+      ? regionsViewport(REGION_IDS.filter((id) => regionCountry(id) === initialCountry))
       : initialUrl.extraCities.length ? regionsViewport([city, ...initialUrl.extraCities]) : CITY_VIEWPORTS[city];
     if (vp?.bounds) {
       return { center: vp.center, zoom: vp.zoom, bounds: vp.bounds };
@@ -1183,7 +1199,10 @@ const App: React.FC = () => {
     const cityChanged = prevCityFilterRef.current !== regionParam;
     prevScopeRef.current = comparisonScope;
     prevCityFilterRef.current = regionParam;
-    const needsRecompute = scopeChanged || cityChanged || customWeights;
+    // The region scope is never what dataLoader computed (it scores nationally), so a
+    // region-scoped view recomputes on every load — including the first, where a shared
+    // `scope=region` link otherwise showed national scores under a "within" label.
+    const needsRecompute = scopeChanged || cityChanged || customWeights || comparisonScope === 'region';
 
     if (needsRecompute) {
       // Default ("all") normalizes against national ranges so scores are
@@ -1474,7 +1493,7 @@ const App: React.FC = () => {
   // the whole displayed set: an earlier "show both" landing in the background must not
   // yank away a prompt the user has just opened for a third region (promptRegion hides
   // it once that region itself is on the map; removing a chip clears it explicitly).
-  const promptScope = `${cityFilter}|${selected?.pno ?? ''}|${splitMode || drawMode || selectMode}`;
+  const promptScope = `${cityFilter}|${countryScope ?? ''}|${selected?.pno ?? ''}|${splitMode || drawMode || selectMode}`;
   const [promptScopeSeen, setPromptScopeSeen] = useState(promptScope);
   if (promptScopeSeen !== promptScope) {
     setPromptScopeSeen(promptScope);
@@ -1517,12 +1536,25 @@ const App: React.FC = () => {
 
   // Map reports the seutukunta under any click that hit no postal area (null over sea
   // or on a double-click zoom). One already on the map needs no prompt.
+  // In a country's national view only the OTHER country's ground prompts (a country-level
+  // switch / show both); the view's own regions are already drawn and selectable.
+  const countryScopeRef = useRef(countryScope);
+  countryScopeRef.current = countryScope;
   const handleRegionClick = useCallback((r: string | null) => {
     if (!r || displayedRef.current.includes(r)) { setRegionPrompt(null); return; }
+    const scope = cityFilterRef.current === 'all' ? countryScopeRef.current : null;
+    if (cityFilterRef.current === 'all' && (!scope || regionCountry(r) === scope)) { setRegionPrompt(null); return; }
     setPeek(null);
     setRegionPrompt(r as RegionId);
-    announce(t('region_switch.prompt').replace('{city}', t('city.' + r)), () => regionPromptRef.current === r);
+    const name = scope ? t('city.scope.' + regionCountry(r)) : t('city.' + r);
+    announce(t('region_switch.prompt').replace('{city}', name), () => regionPromptRef.current === r);
   }, [announce]);
+  // The country prompt's two answers: that country alone, or both ('all', World).
+  const handleCountrySwitch = useCallback((scope: ScopeId) => {
+    setRegionPrompt(null);
+    handleScope(scope);
+    setAriaAnnouncement(t('city.switched_to').replace('{city}', t(scope === 'all' ? 'city.all' : 'city.scope.' + scope)));
+  }, [handleScope]);
   const handleRegionSwitch = useCallback((r: RegionId) => {
     setRegionPrompt(null);
     handleCityChange(r);
@@ -1988,7 +2020,7 @@ const App: React.FC = () => {
   // C6: full reset — return to the default region AND clear all transient state
   // (selection, pins, drawn/selected area, filters, panels, wizard highlight, scope).
   const handleResetView = useCallback(() => {
-    handleCityChange(DEFAULT_CITY);
+    handleScope(DEFAULT_VIEW);
     deselect();
     clearPinned();
     handleClearDraw();
@@ -1997,7 +2029,7 @@ const App: React.FC = () => {
     setShowRanking(false);
     setWizardResultPnos([]);
     setComparisonScope('all');
-  }, [handleCityChange, deselect, clearPinned, handleClearDraw]);
+  }, [handleScope, deselect, clearPinned, handleClearDraw]);
 
   const handleLangChange = useCallback((next: Lang): Promise<void> => {
     if (next === lang) return Promise.resolve();
@@ -2148,11 +2180,12 @@ const App: React.FC = () => {
             disabled={false}
             multi={multiRegion}
             country={viewCountry}
+            mixed={mixedCountries}
           />
         </div>
       </>
     )
-  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange, handleCityChange, displayed, handleAddRegion, lang, viewCountry]);
+  ), [comparisonScope, cityFilter, multiRegion, handleScopeChange, handleCityChange, displayed, handleAddRegion, lang, viewCountry, mixedCountries]);
   // Mobile-only planning overlay controls, folded into the Layers sheet. On desktop
   // the same PlanningControls render as a standalone floating panel below (see the
   // `hidden md:block` block near the LayerSelector); LayerSelector renders this slot
@@ -2595,10 +2628,16 @@ const App: React.FC = () => {
   // (added, or reached by any other switch path) and outside the modes it can't serve.
   const promptRegion = regionPrompt && cityFilter !== 'all' && !displayed.includes(regionPrompt) && !splitMode && !drawMode && !selectMode
     ? regionPrompt : null;
+  // In one country's national view a tap on the other country offers the same choice at
+  // country level: switch to that country, or show both (World).
+  const promptCountry = regionPrompt && cityFilter === 'all' && countryScope && regionCountry(regionPrompt) !== countryScope
+    && !splitMode && !drawMode && !selectMode
+    ? regionCountry(regionPrompt) : null;
+  const promptOpen = promptRegion ?? promptCountry;
   // Narrow touch layouts with no panel open show it in the peek bar's bottom slot (thumb
   // reach, and the top stack would cover the search bar); otherwise the top-centre stack.
-  const promptAtBottom = !!promptRegion && usePeekOnTap && !selected;
-  const regionPromptEl = promptRegion && (
+  const promptAtBottom = !!promptOpen && usePeekOnTap && !selected;
+  const regionPromptEl = promptRegion ? (
     <RegionSwitchPrompt
       region={promptRegion}
       shownCount={displayed.length}
@@ -2606,9 +2645,18 @@ const App: React.FC = () => {
       onAdd={() => handleAddRegion(promptRegion)}
       onClose={() => setRegionPrompt(null)}
     />
-  );
-  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, promptRegion, selected, showFilter, showRanking, showRegionRanking, splitMode });
-  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, promptRegion, selected, showFilter, showRanking, showRegionRanking, splitMode };
+  ) : promptCountry ? (
+    <RegionSwitchPrompt
+      region={promptCountry}
+      name={t('city.scope.' + promptCountry)}
+      shownCount={1}
+      onSwitch={() => handleCountrySwitch(promptCountry)}
+      onAdd={() => handleCountrySwitch('all')}
+      onClose={() => setRegionPrompt(null)}
+    />
+  ) : null;
+  const escapeStateRef = useRef({ selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, promptOpen, selected, showFilter, showRanking, showRegionRanking, splitMode });
+  escapeStateRef.current = { selectMode, drawMode, drawnPolygon, showAssistant, showWizard, showCustomQuality, promptOpen, selected, showFilter, showRanking, showRegionRanking, splitMode };
   const escapeActionsRef = useRef({ deselect, handleClearDraw });
   escapeActionsRef.current = { deselect, handleClearDraw };
   // QW-2: shortcut state + actions, read at keypress time to keep the listener stable.
@@ -2643,7 +2691,7 @@ const App: React.FC = () => {
         if (s.showAssistant) { setShowAssistant(false); return; }
         if (s.showWizard) { setShowWizard(false); return; }
         if (s.showCustomQuality) { setShowCustomQuality(false); return; }
-        if (s.promptRegion) { setRegionPrompt(null); return; }
+        if (s.promptOpen) { setRegionPrompt(null); return; }
         if (s.selected) { a.deselect(); return; }
         if (s.showFilter) { setShowFilter(false); return; }
         if (s.showRanking) { setShowRanking(false); return; }
@@ -2705,7 +2753,7 @@ const App: React.FC = () => {
   // with the auth modal (its own document-Escape listener) at the very top.
   const anyOverlayOpen =
     showAuth || showShortcuts || selectMode || drawMode || !!drawnPolygon ||
-    showWizard || showCustomQuality || showScatter || !!promptRegion || !!selected || !!peek ||
+    showWizard || showCustomQuality || showScatter || !!promptOpen || !!selected || !!peek ||
     pinned.length > 0 || showFilter || showRanking || showRegionRanking || splitMode;
   useBackGesture(anyOverlayOpen, () => {
     if (showAuth) { setShowAuth(false); return; }
@@ -2718,7 +2766,7 @@ const App: React.FC = () => {
     // PO-1: CorrelationExplorer is a z-40 full-screen modal that can cover the
     // selected panel, so close it before `selected`.
     if (showScatter) { setShowScatter(false); return; }
-    if (promptRegion) { setRegionPrompt(null); return; }
+    if (promptOpen) { setRegionPrompt(null); return; }
     if (selected) { deselect(); return; }
     // PO-1: the mobile peek strip (z-30) and the compare tray (z-20, ComparisonPanel)
     // are back-dismissable surfaces too — without these, Back exits the site while they
@@ -2821,7 +2869,7 @@ const App: React.FC = () => {
             onMoveEnd={handleMapMoveEnd}
             priceFallbackValue={priceFallbackValue}
             onReady={handleMapReady}
-            onRegionClick={cityFilter === 'all' || IS_EMBED ? undefined : handleRegionClick}
+            onRegionClick={(cityFilter === 'all' && !countryScope) || IS_EMBED ? undefined : handleRegionClick}
             country={cityFilter === 'all' ? countryScope : null}
             dataCountries={dataCountries}
           />
@@ -3049,8 +3097,16 @@ const App: React.FC = () => {
           />
           {/* The filter / ranking panels open over this column (top-28): hide the chips
               rather than leave a sliver of them poking out above the panel. */}
-          {multiRegion && !showFilter && !showRanking && !showRegionRanking && (
-            <RegionChips regions={displayed} onRemove={handleRemoveRegion} />
+          {cityFilter !== 'all' && !showFilter && !showRanking && !showRegionRanking && (
+            <>
+              {multiRegion && <RegionChips regions={displayed} onRemove={handleRemoveRegion} />}
+              {!IS_EMBED && (
+                <BackToScope
+                  name={t(backScope === 'all' ? 'city.all' : 'city.scope.' + backScope)}
+                  onBack={() => handleScope(backScope)}
+                />
+              )}
+            </>
           )}
         </div>
         {/* CF-2: kaavat & hankkeet overlay toggle (desktop; mobile folds it into the Layers
@@ -3078,6 +3134,7 @@ const App: React.FC = () => {
             disabled={false}
             multi={multiRegion}
             country={viewCountry}
+            mixed={mixedCountries}
           />
           {comparisonScope === 'region' && (
             <div className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white text-[10px] font-semibold backdrop-blur-sm">
@@ -3297,6 +3354,7 @@ const App: React.FC = () => {
             wizardProfile={wizardProfile}
             onOpenWizard={handleOpenWizard}
             qualityScope={comparisonScope === 'region' && cityFilter !== 'all' ? 'region' : 'national'}
+            qualityScopeMulti={multiRegion}
             onExploreCity={handleExploreCity}
             userId={user?.id ?? null}
             isochroneEnabled={ISOCHRONE_ENABLED}
