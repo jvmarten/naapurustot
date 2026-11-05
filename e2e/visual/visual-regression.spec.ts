@@ -38,7 +38,7 @@ test.describe('visual regression', () => {
   });
 
   test('dark mode', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?city=all');
     await waitForDataLoaded(page);
     await waitForMapIdle(page);
 
@@ -105,7 +105,7 @@ test.describe('visual regression', () => {
   });
 
   test('filter panel active', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?city=all');
     await waitForDataLoaded(page);
     await waitForMapIdle(page);
 
@@ -130,7 +130,7 @@ test.describe('visual regression', () => {
   });
 
   test('colorblind mode', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?city=all');
     await waitForDataLoaded(page);
     await waitForMapIdle(page);
 
