@@ -343,3 +343,65 @@ html.theme-transition *::after {
     height: 24px;
   }
 }
+
+/* Kaavat & hankkeet: the card a plan or project click opens (Map.tsx planningPopupHtml). */
+.plan-popup .maplibregl-popup-content {
+  padding: 12px 14px 12px;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 10px 30px -8px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  font-family: inherit;
+}
+.plan-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.plan-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.plan-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: #fff; }
+.plan-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.plan-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.plan-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: #fff; }
+.plan-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #fff; }
+.plan-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #fff; }
+.plan-popup .maplibregl-popup-close-button {
+  width: 28px; height: 28px; top: 4px; right: 4px;
+  border-radius: 8px; font-size: 18px; line-height: 1; color: #64748b;
+}
+.plan-popup .maplibregl-popup-close-button:hover { background: #f1f5f9; color: #0f172a; }
+.plan-pop { padding-right: 18px; font-size: 12px; line-height: 1.4; }
+.plan-pop-kicker {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b;
+}
+.plan-pop-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.plan-pop-title { margin-top: 4px; font-size: 14px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.plan-pop-meta { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.plan-pop-status {
+  display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  color: #0f172a;
+  background: color-mix(in srgb, var(--plan-c) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--plan-c) 45%, transparent);
+}
+.plan-pop-status::first-letter { text-transform: uppercase; }
+.plan-pop-date { color: #64748b; font-variant-numeric: tabular-nums; }
+.plan-pop-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+.plan-pop-link { font-weight: 600; color: #2563eb; text-decoration: none; }
+.plan-pop-link:hover { text-decoration: underline; }
+.plan-pop-source { color: #64748b; }
+
+.dark .plan-popup .maplibregl-popup-content {
+  background: #0f172a; color: #f1f5f9;
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(51, 65, 85, 0.6);
+}
+.dark .plan-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.dark .plan-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.dark .plan-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: #0f172a; }
+.dark .plan-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.dark .plan-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.dark .plan-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: #0f172a; }
+.dark .plan-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #0f172a; }
+.dark .plan-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #0f172a; }
+.dark .plan-popup .maplibregl-popup-close-button { color: #94a3b8; }
+.dark .plan-popup .maplibregl-popup-close-button:hover { background: #1e293b; color: #fff; }
+.dark .plan-pop-kicker, .dark .plan-pop-date, .dark .plan-pop-source { color: #94a3b8; }
+.dark .plan-pop-status { color: #f1f5f9; }
+.dark .plan-pop-foot { border-top-color: #1e293b; }
+.dark .plan-pop-link { color: #60a5fa; }

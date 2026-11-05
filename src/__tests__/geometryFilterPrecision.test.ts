@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature, MultiPolygon, Polygon } from 'geojson';
 
 function makePolygon(coords: number[][][]): Feature<Polygon> {
@@ -31,7 +34,7 @@ describe('filterSmallIslands — threshold precision', () => {
       [largeSquare],  // area = 100
       [tinySquare],   // area = 0.01, which is 0.01% of 100
     ]);
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result.geometry.type).toBe('Polygon'); // converted to Polygon
   });
 
@@ -42,7 +45,7 @@ describe('filterSmallIslands — threshold precision', () => {
       [largeSquare],   // area = 100
       [keptSquare],    // area ≈ 16.81 (> 15)
     ]);
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result.geometry.type).toBe('MultiPolygon');
     expect((result.geometry as MultiPolygon).coordinates.length).toBe(2);
   });
@@ -55,19 +58,19 @@ describe('filterSmallIslands — threshold precision', () => {
       [largeSquare],
       [exactThresholdSquare],
     ]);
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result.geometry.type).toBe('MultiPolygon');
   });
 
   it('passes through Polygon features unchanged', () => {
     const feature = makePolygon([unitSquare]);
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result).toBe(feature); // same reference
   });
 
   it('passes through single-polygon MultiPolygon unchanged', () => {
     const feature = makeMultiPolygon([[unitSquare]]);
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result).toBe(feature);
   });
 
@@ -81,20 +84,20 @@ describe('filterSmallIslands — threshold precision', () => {
       [outer, hole],   // net area = 36
       [unitSquare],    // area = 1 (2.8% of 36 → removed)
     ]);
-    const [result] = filterSmallIslands([withHole]);
+    const [result] = filterSmallIslands([withHole], RELATIVE_ONLY);
     expect(result.geometry.type).toBe('Polygon');
   });
 
   it('preserves feature properties during filtering', () => {
     const feature = makeMultiPolygon([[largeSquare], [tinySquare]]);
     feature.properties = { name: 'Helsinki', pno: '00100' };
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result.properties).toEqual({ name: 'Helsinki', pno: '00100' });
   });
 
   it('returns same reference when no filtering occurs', () => {
     const feature = makeMultiPolygon([[largeSquare], [largeSquare]]);
-    const [result] = filterSmallIslands([feature]);
+    const [result] = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result).toBe(feature); // no filtering needed
   });
 });

@@ -218,8 +218,8 @@ describe('full data pipeline integration', () => {
       },
     ] as Feature[];
 
-    // Step 1: Filter islands
-    const filtered = filterSmallIslands(features);
+    // Step 1: Filter islands (degree-sized fixture: test the relative rule alone)
+    const filtered = filterSmallIslands(features, { keepAboveKm2: Infinity });
     expect(filtered[0].geometry.type).toBe('Polygon'); // Tiny island removed
 
     // Step 2: Compute quality indices on filtered features

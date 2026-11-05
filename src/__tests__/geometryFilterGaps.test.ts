@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature } from 'geojson';
 
 describe('filterSmallIslands — polygon area with holes', () => {
@@ -27,7 +30,7 @@ describe('filterSmallIslands — polygon area with holes', () => {
       properties: {},
     };
 
-    const result = filterSmallIslands([largeWithHole]);
+    const result = filterSmallIslands([largeWithHole], RELATIVE_ONLY);
     // Net area of poly 1: 50 - 2 = 48, poly 2: 4.5
     // 4.5 / 48 = 0.09375 < 0.15 → poly 2 should be removed
     expect(result[0].geometry.type).toBe('Polygon');
@@ -53,7 +56,7 @@ describe('filterSmallIslands — polygon area with holes', () => {
       properties: {},
     };
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Large net: 50 - 0.5 = 49.5, Medium: 8
     // 8 / 49.5 ≈ 0.16 ≥ 0.15 → both kept
     expect(result[0].geometry.type).toBe('MultiPolygon');
@@ -68,7 +71,7 @@ describe('filterSmallIslands — edge cases', () => {
       geometry: { type: 'Point', coordinates: [24.9, 60.2] },
       properties: {},
     };
-    const result = filterSmallIslands([point]);
+    const result = filterSmallIslands([point], RELATIVE_ONLY);
     expect(result[0]).toBe(point); // same reference
   });
 
@@ -81,7 +84,7 @@ describe('filterSmallIslands — edge cases', () => {
       },
       properties: {},
     };
-    const result = filterSmallIslands([poly]);
+    const result = filterSmallIslands([poly], RELATIVE_ONLY);
     expect(result[0]).toBe(poly);
   });
 
@@ -97,7 +100,7 @@ describe('filterSmallIslands — edge cases', () => {
       },
       properties: {},
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('Polygon');
   });
 
@@ -107,7 +110,7 @@ describe('filterSmallIslands — edge cases', () => {
       geometry: null as unknown as GeoJSON.Geometry,
       properties: {},
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature);
   });
 });

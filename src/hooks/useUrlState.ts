@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { LayerId, ColorblindType } from '../utils/colorScales';
 import { LAYERS } from '../utils/colorScales';
-import { REGION_IDS, DEFAULT_CITY, type RegionId } from '../utils/regions';
+import { REGION_IDS, DEFAULT_VIEW, type RegionId } from '../utils/regions';
 import { parseCityParam } from '../utils/regionSet';
 import type { Lang } from '../utils/i18n';
 import type { FilterCriterion } from '../utils/filterUtils';
@@ -523,7 +523,7 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
   if (pno) params.set('pno', pno);
   if (layer !== 'quality_index') params.set('layer', layer);
   if (comparePnos.length > 0) params.set('compare', comparePnos.join(','));
-  if (city && city !== DEFAULT_CITY) params.set('city', city);
+  if (city && city !== DEFAULT_VIEW) params.set('city', city);
   // CF-1: extended analytical state — omit defaults to keep shared URLs short.
   if (extras.scope && extras.scope !== 'all') params.set('scope', extras.scope);
   if (extras.year != null) params.set('year', String(extras.year));
@@ -568,7 +568,7 @@ function serializeUrlParams(pno: string | null, layer: LayerId, comparePnos: str
 }
 
 /** Write current app state to URL query params. Default values are omitted to keep URLs short. */
-function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = DEFAULT_CITY, extras: ExtraUrlState = {}) {
+function writeUrl(pno: string | null, layer: LayerId, comparePnos: string[], city: string = DEFAULT_VIEW, extras: ExtraUrlState = {}) {
   const params = serializeUrlParams(pno, layer, comparePnos, city, extras);
   // NB: viewport (`v`) is intentionally never written here — continuous panning
   // would churn replaceState. It is appended only by buildViewportShareUrl().
@@ -596,7 +596,7 @@ export function readInitialUrlState(): UrlState {
  * passed) and stamps the IN-3 schema version (`sl` is a structured/versioned key).
  * Returns the bare origin when the shortlist is empty.
  */
-export function buildShortlistShareUrl(shortlist: string[], city: string = DEFAULT_CITY): string {
+export function buildShortlistShareUrl(shortlist: string[], city: string = DEFAULT_VIEW): string {
   const base = `${window.location.origin}${window.location.pathname}`;
   const pnos = shortlist.filter((p) => isAreaId(p));
   if (pnos.length === 0) return base;
@@ -627,7 +627,7 @@ export function buildViewportShareUrl(viewport: UrlViewport | null): string {
  *  Debounced to avoid redundant replaceState calls when multiple values change in the same tick.
  *  When `ready` is false, URL writes are suppressed to avoid clearing params from the initial
  *  URL before the restoration effect has consumed them (e.g., pinned neighborhoods). */
-export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = DEFAULT_CITY, ready = true, extras: ExtraUrlState = {}) {
+export function useSyncUrlState(pno: string | null, layer: LayerId, comparePnos: string[] = [], city: string = DEFAULT_VIEW, ready = true, extras: ExtraUrlState = {}) {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const { scope, year, colorblind, lang, ref, filters, weights, isochrone, shortlist, affordability, simWeights, draw, planning } = extras;
   // Depend on serialized keys, not object/array references, so an unchanged value

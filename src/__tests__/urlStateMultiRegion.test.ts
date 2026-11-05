@@ -294,9 +294,9 @@ describe('useSyncUrlState — writing a multi-region city', () => {
     expect(s.extraCities).toEqual(['helsinki_metro', 'turku']);
   });
 
-  it("omits 'all' entirely — going back to the national view clears the city param", () => {
+  it("omits 'fi' entirely — going back to the landing (Finland) view clears the city param", () => {
     setSearch('?city=helsinki_metro,lahti');
-    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all', true));
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'fi', true));
     vi.advanceTimersByTime(100);
     expect(new URLSearchParams(window.location.search).has('city')).toBe(false);
     expect(window.location.search).toBe('');
@@ -305,8 +305,15 @@ describe('useSyncUrlState — writing a multi-region city', () => {
     expect(s.extraCities).toEqual([]);
   });
 
-  it("omits 'all' alongside other params too", () => {
-    renderHook(() => useSyncUrlState('00100', 'median_income', [], 'all', true));
+  it("writes World ('all') explicitly, since a bare URL now lands on Finland", () => {
+    renderHook(() => useSyncUrlState(null, 'quality_index', [], 'all', true));
+    vi.advanceTimersByTime(100);
+    expect(cityInUrl()).toBe('all');
+    expect(readInitialUrlState()).toMatchObject({ city: 'all', extraCities: [] });
+  });
+
+  it("omits 'fi' alongside other params too", () => {
+    renderHook(() => useSyncUrlState('00100', 'median_income', [], 'fi', true));
     vi.advanceTimersByTime(100);
     const params = new URLSearchParams(window.location.search);
     expect(params.has('city')).toBe(false);
@@ -334,7 +341,7 @@ describe('useSyncUrlState — writing a multi-region city', () => {
     vi.advanceTimersByTime(100);
     expect(readInitialUrlState()).toMatchObject({ city: 'lahti', extraCities: ['turku'] });
 
-    rerender({ city: 'all' });
+    rerender({ city: 'fi' });
     vi.advanceTimersByTime(100);
     expect(cityInUrl()).toBeNull();
   });
@@ -405,8 +412,8 @@ describe('buildShortlistShareUrl — multi-region city', () => {
     expect(s.layer).toBeNull();
   });
 
-  it("omits the city for the national 'all' view", () => {
-    const url = buildShortlistShareUrl(['00100', '15100'], 'all');
+  it("omits the city for the landing (Finland) view", () => {
+    const url = buildShortlistShareUrl(['00100', '15100'], 'fi');
     const params = new URL(url).searchParams;
     expect(params.has('city')).toBe(false);
     setSearch(new URL(url).search);

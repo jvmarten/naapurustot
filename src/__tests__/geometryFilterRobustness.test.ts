@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature } from 'geojson';
 
 describe('getFeatureCenter', () => {
@@ -87,7 +90,7 @@ describe('filterSmallIslands — additional edge cases', () => {
       },
     };
 
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     // The tiny polygon is < 15% of the big one → removed
     // Only 1 polygon left → should be converted to Polygon type
     expect(result[0].geometry.type).toBe('Polygon');
@@ -106,7 +109,7 @@ describe('filterSmallIslands — additional edge cases', () => {
       },
     };
 
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as GeoJSON.MultiPolygon).coordinates.length).toBe(2);
   });
@@ -128,7 +131,7 @@ describe('filterSmallIslands — additional edge cases', () => {
       },
     };
 
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     // small polygon area (4) < 15% of large net area (3600), should be removed
     expect(result[0].geometry.type).toBe('Polygon');
   });
@@ -139,7 +142,7 @@ describe('filterSmallIslands — additional edge cases', () => {
       properties: {},
       geometry: { type: 'Point', coordinates: [0, 0] },
     };
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     expect(result[0]).toBe(f); // same reference
   });
 });

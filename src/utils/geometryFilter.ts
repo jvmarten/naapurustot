@@ -27,11 +27,37 @@ function polygonArea(rings: number[][][]): number {
   return Math.max(0, area);
 }
 
+/** Square kilometres per square degree at the equator (111.32 km per degree). */
+const KM2_PER_DEG2 = 111.32 * 111.32;
+
 /**
- * For MultiPolygon features, remove tiny island polygons and keep only
- * significant land masses (at least 15% of the largest polygon's area).
+ * A part at least this large is kept whatever its share of the largest part.
+ *
+ * The relative rule alone dropped real land: a postal area's parts are its land, cut
+ * at the shore, and an archipelago area's mainland piece can be a small share of its
+ * largest island. 10600 (Tammisaari keskus) lost an 11 km² block of mainland west of
+ * Ekenäs that way and the map showed bare basemap there; across Finland 277 parts over
+ * 1 km² went missing. Below 0.1 km² (~300 m square) a part is a skerry that never
+ * fills a pixel at the zooms that draw postal areas, so the relative rule still
+ * clears those and keeps archipelago areas light to draw.
  */
-export function filterSmallIslands(features: Feature[]): Feature[] {
+export const MIN_KEEP_KM2 = 0.1;
+
+/** A polygon's area in km², from its shoelace area in degrees scaled at its latitude. */
+function polygonAreaKm2(rings: number[][][]): number {
+  const lat = rings[0]?.[0]?.[1] ?? 0;
+  return polygonArea(rings) * KM2_PER_DEG2 * Math.cos((lat * Math.PI) / 180);
+}
+
+/**
+ * For MultiPolygon features, remove tiny island polygons: a part goes only when it is
+ * both under 15% of the largest part's area and under `keepAboveKm2` (MIN_KEEP_KM2).
+ * Pass `keepAboveKm2: Infinity` to apply the relative rule alone.
+ */
+export function filterSmallIslands(
+  features: Feature[],
+  { keepAboveKm2 = MIN_KEEP_KM2 }: { keepAboveKm2?: number } = {},
+): Feature[] {
   return features.map((feature) => {
     const geom = feature.geometry;
     if (!geom || geom.type !== 'MultiPolygon' || geom.coordinates.length <= 1) {
@@ -42,7 +68,7 @@ export function filterSmallIslands(features: Feature[]): Feature[] {
     const maxArea = Math.max(...areas);
     const threshold = maxArea * 0.15;
 
-    const filtered = geom.coordinates.filter((_, i) => areas[i] >= threshold);
+    const filtered = geom.coordinates.filter((poly, i) => areas[i] >= threshold || polygonAreaKm2(poly) >= keepAboveKm2);
 
     if (filtered.length === geom.coordinates.length) {
       return feature;

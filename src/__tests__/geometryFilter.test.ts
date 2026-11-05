@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature, MultiPolygon } from 'geojson';
 
 // Helper: create a rectangular polygon from (x1,y1) to (x2,y2)
@@ -23,7 +26,7 @@ describe('filterSmallIslands', () => {
     const tiny = rect(0, 0, 1, 1);    // area = 1 (1% of 100)
     const feature = makeMultiPolygon([large, tiny]);
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Should convert to Polygon since only 1 polygon remains
     expect(result[0].geometry.type).toBe('Polygon');
   });
@@ -33,7 +36,7 @@ describe('filterSmallIslands', () => {
     const medium = rect(0, 0, 5, 5);    // area = 25 (25% of 100)
     const feature = makeMultiPolygon([large, medium]);
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates.length).toBe(2);
   });
@@ -44,13 +47,13 @@ describe('filterSmallIslands', () => {
       geometry: { type: 'Polygon', coordinates: rect(0, 0, 5, 5) },
       properties: {},
     };
-    const result = filterSmallIslands([polyFeature]);
+    const result = filterSmallIslands([polyFeature], RELATIVE_ONLY);
     expect(result[0]).toBe(polyFeature);
   });
 
   it('passes through MultiPolygon with single polygon unchanged', () => {
     const feature = makeMultiPolygon([rect(0, 0, 10, 10)]);
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature);
   });
 
@@ -60,12 +63,12 @@ describe('filterSmallIslands', () => {
     const c = rect(0, 0, 6, 6);    // area = 36 (36%)
     const feature = makeMultiPolygon([a, b, c]);
 
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // All kept → same reference returned
     expect(result[0]).toBe(feature);
   });
 
   it('handles empty features array', () => {
-    expect(filterSmallIslands([])).toEqual([]);
+    expect(filterSmallIslands([], RELATIVE_ONLY)).toEqual([]);
   });
 });

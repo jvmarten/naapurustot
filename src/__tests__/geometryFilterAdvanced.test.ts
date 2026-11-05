@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature, Polygon, MultiPolygon, Point, LineString } from 'geojson';
 
 // Helper to create a polygon ring (closed square) at given position & size
@@ -18,7 +21,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: { type: 'MultiPolygon', coordinates: [[big], [small]] },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // Small polygon removed, single polygon left → type becomes Polygon
     expect(result[0].geometry.type).toBe('Polygon');
   });
@@ -31,7 +34,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: { type: 'MultiPolygon', coordinates: [[big], [mid]] },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('MultiPolygon');
     expect((result[0].geometry as MultiPolygon).coordinates.length).toBe(2);
   });
@@ -42,7 +45,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: { type: 'Polygon', coordinates: [square(0, 0, 5)] },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature); // same reference
   });
 
@@ -52,7 +55,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: { type: 'MultiPolygon', coordinates: [[square(0, 0, 5)]] },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature); // same reference, no filtering needed
   });
 
@@ -64,7 +67,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: { type: 'MultiPolygon', coordinates: [[a], [b]] },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature);
   });
 
@@ -74,7 +77,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: null,
     } as unknown as Feature;
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     expect(result[0]).toBe(feature);
   });
 
@@ -90,7 +93,7 @@ describe('filterSmallIslands', () => {
       properties: {},
       geometry: { type: 'MultiPolygon', coordinates: [bigPoly, tinyPoly] },
     };
-    const result = filterSmallIslands([feature]);
+    const result = filterSmallIslands([feature], RELATIVE_ONLY);
     // 1 < 91 * 0.15 = 13.65 → tiny polygon removed
     expect(result[0].geometry.type).toBe('Polygon');
   });

@@ -4,6 +4,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { filterSmallIslands, getFeatureCenter } from '../utils/geometryFilter';
+// These fixtures are degree-sized squares (thousands of km²), so the absolute
+// keep-floor would keep every part; isolate the 15%-of-largest rule.
+const RELATIVE_ONLY = { keepAboveKm2: Infinity };
 import type { Feature } from 'geojson';
 
 describe('getFeatureCenter', () => {
@@ -111,7 +114,7 @@ describe('filterSmallIslands — threshold precision', () => {
       },
       properties: {},
     };
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     const geom = result[0].geometry;
     // Both should be kept (15% threshold is inclusive: >= 15%)
     expect(geom.type).toBe('MultiPolygon');
@@ -130,7 +133,7 @@ describe('filterSmallIslands — threshold precision', () => {
       },
       properties: {},
     };
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     const geom = result[0].geometry;
     // Tiny polygon should be removed, resulting in a single Polygon
     expect(geom.type).toBe('Polygon');
@@ -148,7 +151,7 @@ describe('filterSmallIslands — threshold precision', () => {
       },
       properties: {},
     };
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     expect(result[0].geometry.type).toBe('Polygon');
   });
 
@@ -161,7 +164,7 @@ describe('filterSmallIslands — threshold precision', () => {
       },
       properties: { pno: '00100', nimi: 'Test' },
     };
-    const result = filterSmallIslands([f]);
+    const result = filterSmallIslands([f], RELATIVE_ONLY);
     expect(result[0].properties).toEqual({ pno: '00100', nimi: 'Test' });
   });
 });
