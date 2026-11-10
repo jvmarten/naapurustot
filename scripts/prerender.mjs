@@ -428,6 +428,9 @@ function fmtNum(n, decimals, lang) {
   });
 }
 
+/** Mirrors src/utils/colorScales.ts NOISE_FLOOR_DB. */
+const NOISE_FLOOR_DB = 40;
+
 /** Human-readable formatting of a metric value for the visible fallback. */
 function formatMetric(value, fmt, lang) {
   const n = Number(value);
@@ -440,7 +443,9 @@ function formatMetric(value, fmt, lang) {
     case 'pct': return `${fmtNum(n, 1, lang)} %`;
     case 'sqm': return `${fmtNum(n, 1, lang)} m²`;
     case 'meters': return `${fmtNum(Math.round(n), 0, lang)} m`;
-    case 'db': return `${fmtNum(n, 1, lang)} dB`;
+    // 40 dB is the noise pipeline's floor for an area no mapped zone reaches — quieter
+    // than the lowest zone, by an unknown amount — not a reading (NOISE_FLOOR_DB).
+    case 'db': return n === NOISE_FLOOR_DB ? LOCALES[lang]['noise.outside_zones'] : `${fmtNum(n, 1, lang)} dB`;
     case 'year': return String(Math.round(n));
     case 'years': return `${fmtNum(n, 1, lang)} ${LOCALES[lang]['profile.unit_years']}`;
     case 'int': return fmtNum(Math.round(n), 0, lang);
@@ -1230,6 +1235,9 @@ function buildJsonLd(props, center, url, lang) {
     for (const m of section.metrics) {
       const v = props[m.prop];
       if (v == null || !Number.isFinite(Number(v))) continue;
+      // The noise floor is a bound, not a value: publishing it as a PropertyValue
+      // would state a measured 40 dB in machine-readable form.
+      if (m.fmt === 'db' && Number(v) === NOISE_FLOOR_DB) continue;
       additionalProperty.push({
         '@type': 'PropertyValue',
         name: m.schema,

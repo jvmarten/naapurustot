@@ -16,7 +16,7 @@ import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
 import { resolveNeighborPnos } from '../utils/adjacency';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { getLayerById, getInterpolatedColor, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
+import { NOISE_FLOOR_DB, getLayerById, getInterpolatedColor, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useNavigate } from 'react-router-dom';
@@ -1863,8 +1863,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           <StatRow
             label={t('panel.noise_pollution')}
-            value={d.noise_pollution != null ? `${Number(d.noise_pollution).toFixed(1)} dB` : '—'}
-            diff={formatDiff(d.noise_pollution, avg.noise_pollution)}
+            value={d.noise_pollution != null ? getLayerById('noise_pollution').format(Number(d.noise_pollution)) : '—'}
+            // Outside every mapped zone the area is only "quieter than the lowest zone",
+            // so a percentage against the average would be computed from a floor.
+            diff={d.noise_pollution === NOISE_FLOOR_DB ? undefined : formatDiff(d.noise_pollution, avg.noise_pollution)}
             diffClass={diffColor(d.noise_pollution, avg.noise_pollution, false)}
             property="noise_pollution"
           />
