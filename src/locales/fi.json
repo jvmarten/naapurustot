@@ -448,6 +448,7 @@
   "layer.median_income": "Mediaanitulo",
   "layer.new_construction": "Uudisrakentaminen",
   "layer.noise_pollution": "Melusaaste",
+  "noise.outside_zones": "Ei melualueella",
   "layer.ownership": "Omistusasuminen",
   "layer.party_diversity": "Puoluekentän monipuolisuus",
   "layer.party_kesk": "Keskusta (ääniosuus)",

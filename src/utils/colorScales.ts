@@ -206,7 +206,7 @@ export interface LayerConfig {
   divergingCenter?: number;
 }
 
-import { getLang } from './i18n';
+import { getLang, t } from './i18n';
 import { HOME_COUNTRY, PREFIXED_COUNTRIES, countryDef, forCountry, type CountryId } from './countries.ts';
 
 // Cache Intl.NumberFormat per locale to avoid recreating on every format call.
@@ -258,7 +258,14 @@ const perThousand = (v: number) => `${v.toFixed(1)} /1000`;
 const gini = (v: number) => `${v.toFixed(2)}`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
 const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
-const decibel = (v: number) => `${v.toFixed(1)} dB`;
+/**
+ * The noise pipeline (`fetch_noise_pollution.py`, `se/fetch_se_noise.py`) gives an area no
+ * mapped noise zone reaches exactly this value. It is not a measurement: the area is only
+ * known to be quieter than the lowest zone its survey mapped (55 dB in Sweden's EU noise
+ * mapping; the Finnish surveys differ), and by how much is unknown. So it is printed as what it is, never as "40.0 dB".
+ */
+export const NOISE_FLOOR_DB = 40;
+const decibel = (v: number) => (v === NOISE_FLOOR_DB ? t('noise.outside_zones') : `${v.toFixed(1)} dB`);
 // CF-19: radon median concentration (whole Bq/m³); CF-21: morbidity index (100 = avg).
 const bq = (v: number) => `${numFmt().format(Math.round(v))} Bq/m³`;
 const years = (v: number) => `${v.toFixed(1)} v`;
