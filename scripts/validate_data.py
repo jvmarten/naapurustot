@@ -256,12 +256,11 @@ DISTINCTNESS_EXEMPT = {
     # polygon edge (2,789/3,018 areas read exactly 0). It is now the
     # population-weighted distance from residents to the nearest water, which
     # is genuinely distinct, so the exemption is gone and the gate enforces it.
-    # Modeled quiet-baseline: measured traffic-noise contours cover ~26 % of areas;
-    # the rest are shown at the 40 dB quiet residential baseline (no major road/rail
-    # nearby), which the layer note states explicitly. This is an intentional modeled
-    # default, not fabricated measurement. FOLLOW-UP: replace the flat baseline with a
-    # distance-to-major-road/rail attenuation model so uncovered areas get a real
-    # gradient (which will also make this exemption unnecessary).
+    # Censored, not modelled: an area no mapped traffic-noise zone reaches is known
+    # only to be quieter than its survey's lowest zone, so it keeps the 40 dB
+    # background (scoring as quiet) and carries that zone in `noise_floor_db`, which
+    # the app prints as "quiet, under N dB" (fetch_noise_pollution.py). Those areas
+    # tie at 40 by construction — roughly half of Finland's postal areas.
     "noise_pollution",
 }
 

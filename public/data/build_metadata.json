@@ -1,6 +1,6 @@
 {
-  "generated": "2026-11-03T09:26:41.517Z",
-  "source_hash": "d6b0479cd341eda7",
+  "generated": "2026-11-10T13:40:28.712Z",
+  "source_hash": "0dba85ab0f6e251b",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -292,7 +292,7 @@
       "coverage_pct": 98.8
     },
     "noise_pollution": {
-      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012 / Väylävirasto (maantie- ja rautatiemelu) / Tampere",
+      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012 / Väylävirasto (maantie- ja katumelu 2022) / Tampere meluselvitys 2022",
       "vintage": "2012–2022",
       "granularity": "postal",
       "is_proxy": false,

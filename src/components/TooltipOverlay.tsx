@@ -1,7 +1,7 @@
 import React, { useSyncExternalStore } from 'react';
 import { Tooltip } from './Tooltip';
 import { getTooltipSnapshot, subscribeTooltip, type TooltipData } from '../utils/tooltipStore';
-import type { LayerConfig } from '../utils/colorScales';
+import { formatNoise, type LayerConfig } from '../utils/colorScales';
 import { t, useI18nVersion } from '../utils/i18n';
 import { parseSchools } from '../utils/formatting';
 
@@ -50,6 +50,11 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
   // estimate. The "vs avg" comparison is suppressed — it would compare the region
   // average against itself.
   const useFallback = !isGridCell && ownValue == null && priceFallbackValue != null;
+  // No mapped noise zone reaches the area: say it is quiet and how quiet is known,
+  // and drop the "vs avg" percentage, which would be computed from the background.
+  const noiseFloor = !isGridCell && effectiveLayer.property === 'noise_pollution' && ownValue != null
+    ? (tooltip.props.noise_floor_db as number | null | undefined)
+    : null;
 
   return (
     <Tooltip
@@ -58,7 +63,8 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
       name={tooltip.props.nimi || tooltip.props.pno}
       value={useFallback ? priceFallbackValue! : ownValue}
       layer={effectiveLayer}
-      metroAverage={isGridCell || useFallback ? undefined : (regionAverages?.[tooltip.props.city ?? '']?.[effectiveLayer.property] ?? metroAverage)}
+      valueText={noiseFloor != null ? formatNoise(ownValue!, noiseFloor) : undefined}
+      metroAverage={isGridCell || useFallback || noiseFloor != null ? undefined : (regionAverages?.[tooltip.props.city ?? '']?.[effectiveLayer.property] ?? metroAverage)}
       schools={schools}
       cellLabel={isGridCell ? t('tooltip.cell_value') : (useFallback ? t('data.subregion_estimate') : undefined)}
     />

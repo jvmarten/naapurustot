@@ -629,7 +629,7 @@
       "note": "note.light_pollution"
     },
     "noise_pollution": {
-      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012 / Väylävirasto (maantie- ja rautatiemelu) / Tampere",
+      "source": "Helsinki meluselvitys 2022 / HRI pks liikennemelu 2012 / Väylävirasto (maantie- ja katumelu 2022) / Tampere meluselvitys 2022",
       "publisher": "hri",
       "vintage": "2012–2022",
       "granularity": "postal",

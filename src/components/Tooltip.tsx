@@ -16,6 +16,8 @@ interface TooltipProps {
   /** QW-8: when set, a small caption marking the value as a fine-grained grid-cell
    *  reading (not the postal aggregate). */
   cellLabel?: string;
+  /** Replaces the formatted value (the noise layer's "quiet, under N dB"). */
+  valueText?: string;
 }
 
 const MAX_SCHOOLS_IN_TOOLTIP = 5;
@@ -23,12 +25,12 @@ const MAX_SCHOOLS_IN_TOOLTIP = 5;
 const OFFSET = 12;
 const PADDING = 8;
 
-export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metroAverage, schools, cellLabel }) => {
+export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metroAverage, schools, cellLabel, valueText }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   const { formatted, comparisonText, comparisonClass } = useMemo(() => {
     const valueFormatter = layer.tooltipFormat ?? layer.format;
-    const fmt = value != null ? valueFormatter(value) : t('tooltip.no_data');
+    const fmt = valueText ?? (value != null ? valueFormatter(value) : t('tooltip.no_data'));
     let cmpText = '';
     let cmpClass = '';
     if (value != null && metroAverage != null && metroAverage !== 0) {
@@ -42,7 +44,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ x, y, name, value, layer, metr
       }
     }
     return { formatted: fmt, comparisonText: cmpText, comparisonClass: cmpClass };
-  }, [value, layer, metroAverage]);
+  }, [value, layer, metroAverage, valueText]);
 
   // Position via direct DOM mutation to avoid a second React render per mousemove.
   // Uses transform instead of left/top so the write doesn't invalidate layout.

@@ -237,6 +237,8 @@ const EXCLUDED_PROPS = new Set([
   'property_price_history', 'crime_index_history', 'tree_canopy_history',
   // Foreign-language estimate time series — trend data, not a coverage metric.
   'foreign_language_history',
+  // The noise layer's display bound for areas no mapped zone reaches, not a metric.
+  'noise_floor_db',
 ]);
 
 function isMeaningful(value) {
