@@ -242,6 +242,8 @@ SCHOOL_QUALITY_SCHOOLS_FILE = Path(__file__).parent / "school_quality_schools.js
 # Light pollution — NASA VIIRS nighttime radiance (pre-processed)
 LIGHT_POLLUTION_FILE = Path(__file__).parent / "light_pollution.json"
 NOISE_POLLUTION_FILE = Path(__file__).parent / "noise_pollution.json"
+# fetch_noise_pollution.py: per area no mapped zone reaches, its survey's lowest zone (dB)
+NOISE_FLOOR_FILE = Path(__file__).parent / "noise_floor.json"
 
 # Phase 10: Water proximity & building age
 WATER_PROXIMITY_FILE = Path(__file__).parent / "water_proximity.json"
@@ -2819,9 +2821,13 @@ def main():
     light_data = fetch_light_pollution()
     gdf = _join_simple_data(gdf, light_data, "light_pollution", "light pollution")
 
-    # Noise pollution (Helsinki meluselvitys 2022 / HRI metro 2012)
+    # Noise pollution (Helsinki 2022 / HRI metro 2012 / Tampere 2022 / Väylävirasto 2022)
     noise_data = fetch_noise_pollution()
     gdf = _join_simple_data(gdf, noise_data, "noise_pollution", "noise pollution")
+    # The bound for areas no mapped zone reaches. Written as an int, as the file holds it
+    # (inject_layer_values.py does the same), not through _join_simple_data's float().
+    noise_floor = json.loads(NOISE_FLOOR_FILE.read_text(encoding="utf-8")) if NOISE_FLOOR_FILE.exists() else {}
+    gdf["noise_floor_db"] = [noise_floor.get(p) for p in gdf["pno"]]
 
     # --- Phase 7: New data sources ---
     gdf = join_election_data(gdf)
@@ -2896,6 +2902,8 @@ def main():
         "walkability_index", "traffic_accident_rate",
         "property_price_change_pct", "school_quality_score",
         "light_pollution",
+        # (not noise_floor_db: it is null by design wherever a zone reaches the area,
+        # so backfilling would restore a stale bound next to a fresh value)
         "noise_pollution",
         # Phase 10: Water proximity & building age
         "water_proximity_m",

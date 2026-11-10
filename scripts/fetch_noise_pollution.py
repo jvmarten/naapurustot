@@ -3,18 +3,29 @@
 Compute noise pollution (Lden dB) per postal code area from open traffic noise
 contour data.
 
-Sources:
-  - Helsinki 2022: WFS at kartta.hel.fi (Meluselvitys 2022, road traffic Lden)
-  - Metro area 2012: HRI shapefile pks_maantieet_Lden (covers Helsinki, Espoo,
-    Vantaa, Kauniainen — used as fallback)
-  - Väylävirasto 2022: National road/street noise contours (covers Turku, Tampere)
-  - Tampere 2022: City WFS at geodata.tampere.fi (road noise Lden)
+Sources, by the municipality (`kunta`) each postal area belongs to:
+  - Helsinki (091): Helsinki 2022 WFS at kartta.hel.fi (Meluselvitys 2022, streets
+    and roads, Lden); the 2012 metro-area survey if that WFS fails
+  - Espoo, Vantaa, Kauniainen (049, 092, 235): HRI shapefile pks_maantieet_Lden (2012)
+  - Tampere (837): city WFS at geodata.tampere.fi (road noise 2022); Väylävirasto
+    if it fails
+  - everywhere else: Väylävirasto 2022 national road/street noise contours
 
-Method: area-weighted average of noise zone midpoint dB values per postal code.
-Postal code areas outside any noise contour are assigned a background level of
-40 dB (quiet residential baseline).
+A city survey maps every street of its own municipality, and only of it, so it is
+used only there. (Until 2026-11 the Tampere survey was applied to every postal code
+starting 33-39 and a Turku-only Väylävirasto box to every code starting 20/21/23/27,
+so areas outside both got the background value without having been surveyed, and
+the nationwide pass skipped them because they already had one: 54 of them sit on a
+mapped main road and now have a value.)
+
+Method: area-weighted average of noise zone midpoint dB values per postal code,
+ground outside every contour counted at 40 dB. An area no contour reaches at all
+is quieter than its survey's lowest zone, by an unknown amount: it keeps the 40 dB
+value (so it scores as quiet) and records that zone's lower edge as its bound.
 
 Output: scripts/noise_pollution.json — { postal_code: avg_Lden_dB }
+        scripts/noise_floor.json     — { postal_code: lowest_zone_dB } for areas
+                                       no contour reaches
 """
 
 import io
@@ -23,10 +34,12 @@ import logging
 import math
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 import requests
 from shapely.geometry import shape
 from shapely.validation import make_valid
@@ -39,6 +52,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 OUTPUT_FILE = Path(__file__).parent / "noise_pollution.json"
+FLOOR_FILE = Path(__file__).parent / "noise_floor.json"
 GEOJSON_FILE = (
     Path(__file__).parent.parent / "public" / "data" / "metro_neighborhoods.geojson"
 )
@@ -54,8 +68,10 @@ METRO_NOISE_URL = (
 )
 METRO_NOISE_SHAPEFILE = "pks_maantieet_Lden"
 
-# Helsinki postal codes start with 00 (001xx-009xx)
-HELSINKI_PREFIX = "00"
+# Municipality codes each city survey covers.
+HELSINKI_KUNTA = {"091"}
+METRO_KUNTA = {"049", "092", "235"}  # Espoo, Vantaa, Kauniainen
+TAMPERE_KUNTA = {"837"}
 
 # Väylävirasto (Finnish Transport Infra Agency) WFS — nationwide road noise 2022
 VAYLA_WFS_URL = "https://avoinapi.vaylapilvi.fi/vaylatiedot/ows"
@@ -65,23 +81,22 @@ VAYLA_LAYER = "tiestotiedot:melu_paiva_maankad_22"
 TAMPERE_WFS_URL = "https://geodata.tampere.fi/geoserver/ows"
 TAMPERE_LAYER = "ymparisto_ja_terveys:yv_melu_paiva_2022_keskiaani_gsview"
 
-# Regional bounding boxes (minx, miny, maxx, maxy in EPSG:3067)
-TURKU_BBOX_3067 = "198000,6690000,274000,6743000"
-TAMPERE_BBOX_3067 = "294000,6792000,392000,6898000"
-
 # Nationwide bbox in EPSG:3067 covering all of mainland Finland + Ahvenanmaa.
 FINLAND_BBOX_3067 = (50_000.0, 6_600_000.0, 750_000.0, 7_800_000.0)
-# Tile grid for nationwide WFS queries (cols, rows). 24 tiles ~= 175x200 km
-# each, well under the WFS server's per-response feature cap.
+# Tile grid for nationwide WFS queries (cols, rows). 24 tiles ~= 175x200 km each.
+# The server returns a whole tile in one response (108,621 features / 355 MB for
+# the densest southern tile on 2026-11-10); every response is checked against its
+# numberMatched, so a capped one fails the run instead of thinning the map.
 FINLAND_GRID_COLS = 4
 FINLAND_GRID_ROWS = 6
+TILE_ATTEMPTS = 3
 
-# Background noise level (dB) for areas outside any contour
+# Value (dB) given to ground outside every contour
 BACKGROUND_DB = 40.0
 
 
 def load_postal_codes():
-    """Load postal code polygons from the project GeoJSON."""
+    """Load postal code polygons (with their municipality code) from the project GeoJSON."""
     if not GEOJSON_FILE.exists():
         logger.error("GeoJSON not found: %s", GEOJSON_FILE)
         sys.exit(1)
@@ -99,7 +114,10 @@ def load_postal_codes():
         pno = props.get("pno", "")
         geom = feat.get("geometry")
         if pno and geom:
-            records.append({"pno": pno, "geometry": shape(geom)})
+            kunta = props.get("kunta")
+            if not kunta:
+                raise SystemExit(f"{pno}: no kunta, cannot tell which survey covers it")
+            records.append({"pno": pno, "kunta": str(kunta), "geometry": shape(geom)})
 
     gdf = gpd.GeoDataFrame(records, crs="EPSG:4326")
     logger.info("  Parsed %d postal code polygons", len(gdf))
@@ -124,6 +142,9 @@ def fetch_helsinki_noise():
 
     features = data.get("features", [])
     logger.info("  Received %d noise contour features", len(features))
+    matched = data.get("numberMatched")
+    if isinstance(matched, int) and matched != len(features):
+        raise RuntimeError(f"Helsinki WFS returned {len(features)} of {matched} features — capped response")
 
     if not features:
         logger.warning("  No features returned from Helsinki WFS")
@@ -144,7 +165,7 @@ def fetch_metro_noise():
     """Download metro-area 2012 Lden noise shapefile."""
     logger.info("Downloading metro-area noise shapefile...")
 
-    resp = requests.get(METRO_NOISE_URL, timeout=120)
+    resp = requests.get(METRO_NOISE_URL, timeout=600)
     resp.raise_for_status()
     logger.info("  Downloaded %.1f MB", len(resp.content) / 1024 / 1024)
 
@@ -156,8 +177,7 @@ def fetch_metro_noise():
 
         shp_path = Path(tmpdir) / f"{METRO_NOISE_SHAPEFILE}.shp"
         if not shp_path.exists():
-            logger.error("  Shapefile not found in archive")
-            return gpd.GeoDataFrame()
+            raise SystemExit("Metro noise shapefile not found in archive")
 
         gdf = gpd.read_file(shp_path)
 
@@ -230,148 +250,6 @@ def _add_db_columns(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame()
 
 
-def fetch_vayla_noise(bbox_3067: str, label: str):
-    """Fetch road noise contours from Väylävirasto WFS for a region.
-
-    Splits the bbox into sub-tiles to avoid empty responses from the server
-    which truncates large result sets.
-    """
-    logger.info("Fetching Väylävirasto noise data for %s...", label)
-
-    parts = bbox_3067.split(",")
-    x0, y0, x1, y1 = float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3])
-
-    # Split into ~4 sub-tiles
-    mx = (x0 + x1) / 2
-    my = (y0 + y1) / 2
-    sub_bboxes = [
-        f"{x0:.0f},{y0:.0f},{mx:.0f},{my:.0f}",
-        f"{mx:.0f},{y0:.0f},{x1:.0f},{my:.0f}",
-        f"{x0:.0f},{my:.0f},{mx:.0f},{y1:.0f}",
-        f"{mx:.0f},{my:.0f},{x1:.0f},{y1:.0f}",
-    ]
-
-    all_features = []
-    for i, sub_bbox in enumerate(sub_bboxes):
-        params = {
-            "service": "WFS",
-            "version": "2.0.0",
-            "request": "GetFeature",
-            "typeName": VAYLA_LAYER,
-            "outputFormat": "application/json",
-            "srsName": "EPSG:3067",
-            "bbox": f"{sub_bbox},EPSG:3067",
-        }
-
-        try:
-            resp = requests.get(VAYLA_WFS_URL, params=params, timeout=300)
-            resp.raise_for_status()
-            if len(resp.text) == 0:
-                logger.warning("  Sub-tile %d: empty response", i + 1)
-                continue
-            data = resp.json()
-            features = data.get("features", [])
-            logger.info("  Sub-tile %d: %d features", i + 1, len(features))
-            all_features.extend(features)
-        except Exception as e:
-            logger.warning("  Sub-tile %d failed: %s", i + 1, e)
-
-    logger.info("  Total %d noise features for %s", len(all_features), label)
-
-    if not all_features:
-        return gpd.GeoDataFrame()
-
-    gdf = gpd.GeoDataFrame.from_features(all_features, crs="EPSG:3067")
-    gdf = _add_db_columns(gdf)
-
-    if gdf.empty:
-        return gdf
-
-    logger.info("  %s noise: %d features, dB range: %.0f–%.0f",
-                label, len(gdf), gdf["db_lo"].min(), gdf["db_hi"].max())
-    return gdf
-
-
-def fetch_vayla_nationwide():
-    """Fetch Väylävirasto noise contours across all of Finland in a tile grid.
-
-    Returns a single GeoDataFrame with deduplicated features from every tile.
-    """
-    logger.info(
-        "Fetching Väylävirasto noise data nationwide (%dx%d tile grid)...",
-        FINLAND_GRID_COLS, FINLAND_GRID_ROWS,
-    )
-
-    x0, y0, x1, y1 = FINLAND_BBOX_3067
-    dx = (x1 - x0) / FINLAND_GRID_COLS
-    dy = (y1 - y0) / FINLAND_GRID_ROWS
-
-    all_features = []
-    seen_ids: set[str] = set()
-    n_tiles = FINLAND_GRID_COLS * FINLAND_GRID_ROWS
-    tile_idx = 0
-
-    for r in range(FINLAND_GRID_ROWS):
-        for c in range(FINLAND_GRID_COLS):
-            tile_idx += 1
-            tx0 = x0 + c * dx
-            ty0 = y0 + r * dy
-            tx1 = tx0 + dx
-            ty1 = ty0 + dy
-            bbox = f"{tx0:.0f},{ty0:.0f},{tx1:.0f},{ty1:.0f}"
-
-            params = {
-                "service": "WFS",
-                "version": "2.0.0",
-                "request": "GetFeature",
-                "typeName": VAYLA_LAYER,
-                "outputFormat": "application/json",
-                "srsName": "EPSG:3067",
-                "bbox": f"{bbox},EPSG:3067",
-            }
-
-            try:
-                resp = requests.get(VAYLA_WFS_URL, params=params, timeout=300)
-                resp.raise_for_status()
-                if not resp.text:
-                    logger.warning("  Tile %d/%d empty", tile_idx, n_tiles)
-                    continue
-                data = resp.json()
-                feats = data.get("features", [])
-                # Deduplicate features that cross tile boundaries
-                new_feats = 0
-                for f in feats:
-                    fid = f.get("id") or json.dumps(f.get("properties", {}), sort_keys=True)
-                    if fid in seen_ids:
-                        continue
-                    seen_ids.add(fid)
-                    all_features.append(f)
-                    new_feats += 1
-                logger.info(
-                    "  Tile %d/%d: %d features (%d new)",
-                    tile_idx, n_tiles, len(feats), new_feats,
-                )
-            except Exception as e:
-                logger.warning("  Tile %d/%d failed: %s", tile_idx, n_tiles, e)
-
-    logger.info("  Total %d unique noise features nationwide", len(all_features))
-
-    if not all_features:
-        return gpd.GeoDataFrame()
-
-    gdf = gpd.GeoDataFrame.from_features(all_features, crs="EPSG:3067")
-    gdf = _add_db_columns(gdf)
-
-    if gdf.empty:
-        return gdf
-
-    logger.info(
-        "  Nationwide noise: %d features, dB range: %.0f–%.0f",
-        len(gdf), gdf["db_lo"].min(), gdf["db_hi"].max(),
-    )
-    return gdf
-
-
 def fetch_tampere_noise():
     """Fetch Tampere city road noise contours from WFS."""
     logger.info("Fetching Tampere city noise data...")
@@ -407,16 +285,97 @@ def fetch_tampere_noise():
     return gdf
 
 
+def fetch_vayla_nationwide():
+    """Fetch Väylävirasto noise contours across all of Finland in a tile grid.
+
+    Returns one GeoDataFrame, deduplicated by WFS feature id (features crossing a tile
+    edge come back in both tiles). A tile that cannot be fetched whole raises: a
+    missing tile would put every area in it outside every contour, i.e. "quiet".
+    """
+    logger.info(
+        "Fetching Väylävirasto noise data nationwide (%dx%d tile grid)...",
+        FINLAND_GRID_COLS, FINLAND_GRID_ROWS,
+    )
+
+    x0, y0, x1, y1 = FINLAND_BBOX_3067
+    dx = (x1 - x0) / FINLAND_GRID_COLS
+    dy = (y1 - y0) / FINLAND_GRID_ROWS
+
+    parts = []
+    n_tiles = FINLAND_GRID_COLS * FINLAND_GRID_ROWS
+    tile_idx = 0
+
+    for r in range(FINLAND_GRID_ROWS):
+        for c in range(FINLAND_GRID_COLS):
+            tile_idx += 1
+            tx0 = x0 + c * dx
+            ty0 = y0 + r * dy
+            bbox = f"{tx0:.0f},{ty0:.0f},{tx0 + dx:.0f},{ty0 + dy:.0f}"
+            params = {
+                "service": "WFS",
+                "version": "2.0.0",
+                "request": "GetFeature",
+                "typeName": VAYLA_LAYER,
+                "outputFormat": "application/json",
+                "srsName": "EPSG:3067",
+                "bbox": f"{bbox},EPSG:3067",
+            }
+
+            data = None
+            for attempt in range(1, TILE_ATTEMPTS + 1):
+                try:
+                    resp = requests.get(VAYLA_WFS_URL, params=params, timeout=900)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    break
+                except Exception as e:
+                    logger.warning("  Tile %d/%d attempt %d failed: %s", tile_idx, n_tiles, attempt, e)
+                    if attempt == TILE_ATTEMPTS:
+                        raise SystemExit(f"Väylävirasto tile {tile_idx} ({bbox}) unfetchable — not writing a partial map")
+                    time.sleep(10 * attempt)
+
+            feats = data.get("features", [])
+            matched = data.get("numberMatched")
+            if isinstance(matched, int) and matched != len(feats):
+                raise SystemExit(
+                    f"Väylävirasto tile {tile_idx}: {len(feats)} of {matched} features returned — capped response"
+                )
+            logger.info("  Tile %d/%d: %d features", tile_idx, n_tiles, len(feats))
+            if feats:
+                tile = gpd.GeoDataFrame.from_features(feats, crs="EPSG:3067")
+                tile["fid"] = [f["id"] for f in feats]
+                parts.append(tile[["fid", "melu_db", "geometry"]])
+            del data, feats
+
+    if not parts:
+        raise SystemExit("Väylävirasto returned no features at all")
+
+    gdf = pd.concat(parts, ignore_index=True)
+    gdf = gpd.GeoDataFrame(gdf.drop_duplicates(subset="fid"), crs="EPSG:3067")
+    logger.info("  Total %d unique noise features nationwide", len(gdf))
+    gdf = _add_db_columns(gdf)
+    if gdf.empty:
+        raise SystemExit("Väylävirasto features carry no parseable dB band")
+
+    logger.info(
+        "  Nationwide noise: %d features, dB range: %.0f–%.0f",
+        len(gdf), gdf["db_lo"].min(), gdf["db_hi"].max(),
+    )
+    return gdf
+
+
 def compute_noise_per_postal_code(postal_gdf, noise_gdf, label=""):
     """Compute area-weighted average Lden per postal code.
 
-    For each postal code, intersect with noise contours and weight the
-    midpoint dB of each band by the intersection area. Areas outside any
-    contour get the background noise level.
+    For each postal code, intersect with noise contours and weight the midpoint dB
+    of each band by the intersection area; ground outside every contour counts at
+    BACKGROUND_DB. Returns (values, floors): floors holds, for each area no contour
+    reaches at all, the survey's lowest zone (its lower edge in dB) — what that
+    area is known to be quieter than.
     """
     if noise_gdf.empty:
         logger.warning("  No noise data for %s — skipping", label)
-        return {}
+        return {}, {}
 
     # Reproject postal codes to noise CRS for accurate area computation
     postal_proj = postal_gdf.to_crs(noise_gdf.crs)
@@ -424,10 +383,12 @@ def compute_noise_per_postal_code(postal_gdf, noise_gdf, label=""):
     noise_gdf = noise_gdf.copy()
     noise_gdf["geometry"] = noise_gdf["geometry"].apply(make_valid)
     noise_gdf["db_mid"] = (noise_gdf["db_lo"] + noise_gdf["db_hi"]) / 2.0
+    lowest_zone = float(noise_gdf["db_lo"].min())
 
     noise_sindex = noise_gdf.sindex
 
     results = {}
+    floors = {}
     total = len(postal_proj)
 
     for i, (idx, row) in enumerate(postal_proj.iterrows()):
@@ -438,194 +399,103 @@ def compute_noise_per_postal_code(postal_gdf, noise_gdf, label=""):
         if postal_area <= 0:
             continue
 
-        candidates = list(noise_sindex.intersection(postal_geom.bounds))
-        if not candidates:
-            results[pno] = BACKGROUND_DB
-            continue
-
         weighted_sum = 0.0
         covered_area = 0.0
 
-        for cand_idx in candidates:
+        for cand_idx in noise_sindex.query(postal_geom, predicate="intersects"):
             noise_row = noise_gdf.iloc[cand_idx]
-            noise_geom = noise_row["geometry"]
-
             try:
-                if not postal_geom.intersects(noise_geom):
-                    continue
-
-                intersection = postal_geom.intersection(noise_geom)
-                inter_area = intersection.area
-
-                if inter_area > 0 and not math.isnan(inter_area):
-                    db_mid = noise_row["db_mid"]
-                    if not math.isnan(db_mid):
-                        weighted_sum += inter_area * db_mid
-                        covered_area += inter_area
+                inter_area = postal_geom.intersection(noise_row["geometry"]).area
             except Exception:
                 # Skip problematic geometries
                 continue
+            db_mid = noise_row["db_mid"]
+            if inter_area > 0 and not math.isnan(inter_area) and not math.isnan(db_mid):
+                weighted_sum += inter_area * db_mid
+                covered_area += inter_area
+
+        if covered_area <= 0:
+            results[pno] = BACKGROUND_DB
+            floors[pno] = lowest_zone
+            continue
 
         # Clamp uncovered area to >= 0 (overlapping contours can exceed total)
         uncovered = max(0, postal_area - covered_area)
         total_area = max(covered_area, postal_area)
+        avg_db = (weighted_sum + uncovered * BACKGROUND_DB) / total_area
+        if not math.isnan(avg_db):
+            results[pno] = round(avg_db, 1)
 
-        if total_area > 0:
-            avg_db = (weighted_sum + uncovered * BACKGROUND_DB) / total_area
-            if not math.isnan(avg_db):
-                results[pno] = round(avg_db, 1)
-
-        if (i + 1) % 20 == 0 or (i + 1) == total:
+        if (i + 1) % 100 == 0 or (i + 1) == total:
             logger.info("  %s: processed %d/%d postal codes", label, i + 1, total)
 
-    return results
+    logger.info("  %s: %d areas, %d outside every contour (lowest zone %.0f dB)",
+                label, len(results), len(floors), lowest_zone)
+    return results, floors
 
 
 def main():
     postal_gdf = load_postal_codes()
 
-    hki_mask = postal_gdf["pno"].str.startswith(HELSINKI_PREFIX)
-    hki_postal = postal_gdf[hki_mask].copy()
-    other_hki_postal = postal_gdf[
-        postal_gdf["pno"].str.startswith("01") | postal_gdf["pno"].str.startswith("02")
-    ].copy()
-    turku_postal = postal_gdf[
-        postal_gdf["pno"].str.startswith("20") | postal_gdf["pno"].str.startswith("21")
-        | postal_gdf["pno"].str.startswith("23") | postal_gdf["pno"].str.startswith("27")
-    ].copy()
-    tampere_postal = postal_gdf[
-        postal_gdf["pno"].str.startswith("33") | postal_gdf["pno"].str.startswith("34")
-        | postal_gdf["pno"].str.startswith("35") | postal_gdf["pno"].str.startswith("36")
-        | postal_gdf["pno"].str.startswith("37") | postal_gdf["pno"].str.startswith("38")
-        | postal_gdf["pno"].str.startswith("39")
-    ].copy()
-
+    hki_postal = postal_gdf[postal_gdf["kunta"].isin(HELSINKI_KUNTA)].copy()
+    metro_postal = postal_gdf[postal_gdf["kunta"].isin(METRO_KUNTA)].copy()
+    tampere_postal = postal_gdf[postal_gdf["kunta"].isin(TAMPERE_KUNTA)].copy()
     logger.info(
-        "Split: %d Helsinki, %d Espoo/Vantaa/Kauniainen, %d Turku, %d Tampere postal codes",
-        len(hki_postal), len(other_hki_postal), len(turku_postal), len(tampere_postal),
+        "Split: %d Helsinki, %d Espoo/Vantaa/Kauniainen, %d Tampere, %d elsewhere",
+        len(hki_postal), len(metro_postal), len(tampere_postal),
+        len(postal_gdf) - len(hki_postal) - len(metro_postal) - len(tampere_postal),
     )
 
     results = {}
+    floors = {}
 
-    # --- Helsinki metro ---
-    hki_wfs_ok = False
+    def take(part):
+        values, part_floors = part
+        results.update(values)
+        floors.update(part_floors)
+
+    # --- Helsinki: 2022 survey, else the 2012 metro survey ---
+    metro_noise = fetch_metro_noise()
     try:
         hki_noise = fetch_helsinki_noise()
-        if not hki_noise.empty:
-            hki_results = compute_noise_per_postal_code(
-                hki_postal, hki_noise, label="Helsinki 2022"
-            )
-            if len(hki_results) > len(hki_postal) * 0.5:
-                results.update(hki_results)
-                hki_wfs_ok = True
-                logger.info("Helsinki 2022 WFS: %d postal codes", len(hki_results))
     except Exception as e:
-        logger.warning("Helsinki 2022 WFS failed: %s — falling back to metro", e)
+        logger.warning("Helsinki 2022 WFS failed: %s — falling back to metro 2012", e)
+        hki_noise = gpd.GeoDataFrame()
+    take(compute_noise_per_postal_code(
+        hki_postal, hki_noise if not hki_noise.empty else metro_noise,
+        label="Helsinki 2022" if not hki_noise.empty else "Helsinki (metro 2012)",
+    ))
 
-    try:
-        metro_noise = fetch_metro_noise()
-        if not hki_wfs_ok:
-            logger.info("Using metro shapefile for Helsinki (fallback)")
-            hki_metro = compute_noise_per_postal_code(
-                hki_postal, metro_noise, label="Helsinki metro"
-            )
-            results.update(hki_metro)
-            logger.info("Helsinki (metro fallback): %d postal codes", len(hki_metro))
+    # --- Espoo, Vantaa, Kauniainen: 2012 metro survey ---
+    take(compute_noise_per_postal_code(metro_postal, metro_noise, label="Espoo/Vantaa/Kauniainen"))
 
-        other_results = compute_noise_per_postal_code(
-            other_hki_postal, metro_noise, label="Espoo/Vantaa/Kauniainen"
-        )
-        results.update(other_results)
-        logger.info("Espoo/Vantaa/Kauniainen: %d postal codes", len(other_results))
-    except Exception as e:
-        logger.error("Metro noise data failed: %s", e)
+    # --- Everywhere else (and Tampere if its city WFS fails): Väylävirasto ---
+    nationwide_noise = fetch_vayla_nationwide()
 
-    # --- Turku: Väylävirasto nationwide WFS ---
-    try:
-        turku_noise = fetch_vayla_noise(TURKU_BBOX_3067, "Turku")
-        if not turku_noise.empty:
-            turku_results = compute_noise_per_postal_code(
-                turku_postal, turku_noise, label="Turku (Väylävirasto)"
-            )
-            results.update(turku_results)
-            logger.info("Turku: %d postal codes", len(turku_results))
-    except Exception as e:
-        logger.warning("Turku noise data failed: %s", e)
-
-    # --- Tampere: Try city WFS first, fall back to Väylävirasto ---
-    tampere_done = False
     try:
         tampere_noise = fetch_tampere_noise()
-        if not tampere_noise.empty:
-            tampere_results = compute_noise_per_postal_code(
-                tampere_postal, tampere_noise, label="Tampere city"
-            )
-            if len(tampere_results) > len(tampere_postal) * 0.3:
-                results.update(tampere_results)
-                tampere_done = True
-                logger.info("Tampere city: %d postal codes", len(tampere_results))
     except Exception as e:
-        logger.warning("Tampere city noise failed: %s — trying Väylävirasto", e)
+        logger.warning("Tampere city WFS failed: %s — using Väylävirasto", e)
+        tampere_noise = gpd.GeoDataFrame()
+    if tampere_noise.empty:
+        tampere_noise = nationwide_noise
+    take(compute_noise_per_postal_code(tampere_postal, tampere_noise, label="Tampere"))
 
-    if not tampere_done:
-        try:
-            tampere_vayla = fetch_vayla_noise(TAMPERE_BBOX_3067, "Tampere")
-            if not tampere_vayla.empty:
-                tampere_results = compute_noise_per_postal_code(
-                    tampere_postal, tampere_vayla, label="Tampere (Väylävirasto)"
-                )
-                results.update(tampere_results)
-                logger.info("Tampere (Väylävirasto): %d postal codes", len(tampere_results))
-        except Exception as e:
-            logger.warning("Tampere Väylävirasto noise failed: %s", e)
+    rest = postal_gdf[~postal_gdf["pno"].isin(results)].copy()
+    take(compute_noise_per_postal_code(rest, nationwide_noise, label="Nationwide (Väylävirasto)"))
 
-    # --- Phase 5: Nationwide fill-in via Väylävirasto main-road contours ---
-    # Covers every postal code outside Helsinki metro / Turku / Tampere with
-    # real noise contours where main roads pass through, and the 40 dB
-    # background floor everywhere else.
-    remaining = postal_gdf[~postal_gdf["pno"].isin(results)].copy()
-    if not remaining.empty:
-        logger.info(
-            "Phase 5: %d postal codes still uncovered — fetching nationwide Väylävirasto data",
-            len(remaining),
-        )
-        try:
-            nationwide_noise = fetch_vayla_nationwide()
-            if not nationwide_noise.empty:
-                nationwide_results = compute_noise_per_postal_code(
-                    remaining, nationwide_noise, label="Nationwide (Väylävirasto)",
-                )
-                before = len(results)
-                for pno, val in nationwide_results.items():
-                    if pno not in results:
-                        results[pno] = val
-                logger.info(
-                    "Phase 5: filled %d postal codes nationwide",
-                    len(results) - before,
-                )
-        except Exception as e:
-            logger.warning("Nationwide Väylävirasto fetch failed: %s", e)
-
-        # Any postal codes still missing get the background floor.
-        still_missing = [
-            p for p in remaining["pno"].tolist() if p not in results
-        ]
-        if still_missing:
-            for pno in still_missing:
-                results[pno] = BACKGROUND_DB
-            logger.info(
-                "Phase 5: assigned background %.0f dB to %d remote postal codes",
-                BACKGROUND_DB, len(still_missing),
-            )
-
-    if not results:
-        logger.error("No noise data computed — aborting")
-        sys.exit(1)
+    missing = [p for p in postal_gdf["pno"] if p not in results]
+    if missing:
+        raise SystemExit(f"{len(missing)} postal codes got no value: {missing[:10]}")
 
     # Write output
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, sort_keys=True)
-    logger.info("Wrote %d postal codes to %s", len(results), OUTPUT_FILE.name)
+    with open(FLOOR_FILE, "w", encoding="utf-8") as f:
+        json.dump({k: int(v) if float(v).is_integer() else v for k, v in floors.items()},
+                  f, indent=2, sort_keys=True)
+    logger.info("Wrote %d postal codes to %s, %d floors to %s",
+                len(results), OUTPUT_FILE.name, len(floors), FLOOR_FILE.name)
 
 
 if __name__ == "__main__":

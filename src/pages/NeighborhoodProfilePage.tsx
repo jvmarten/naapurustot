@@ -10,7 +10,7 @@ import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { formatNumber, formatEuro, formatPct, formatDiff, formatDecimal, formatDensity, formatFineDensity } from '../utils/formatting';
 import { getQualityCategory, getQualityCategories, QUALITY_DIMENSIONS, isCustomWeights } from '../utils/qualityIndex';
-import { NOISE_FLOOR_DB, getLayerById, getInterpolatedColor, readableTextColor, type LayerId } from '../utils/colorScales';
+import { formatNoise, getLayerById, getInterpolatedColor, readableTextColor, type LayerId } from '../utils/colorScales';
 import { findSimilarNeighborhoods } from '../utils/similarity';
 import { getFeatureCenter } from '../utils/geometryFilter';
 import { ContactMenu } from '../components/ContactMenu';
@@ -525,7 +525,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
   const seItems = (ids: LayerId[]) => ids.map((id) => {
     const layer = getLayerById(id);
     const v = (d as unknown as Record<string, unknown>)[layer.property];
-    return <StatItem key={id} label={t(layer.labelKey)} value={typeof v === 'number' && isFinite(v) ? layer.format(v) : '—'} />;
+    const text = typeof v !== 'number' || !isFinite(v) ? '—' : id === 'noise_pollution' ? formatNoise(v, d.noise_floor_db) : layer.format(v);
+    return <StatItem key={id} label={t(layer.labelKey)} value={text} />;
   });
   const saved = isFavorite(d.pno);
   const avg = state.metroAverages;
@@ -998,7 +999,7 @@ export const NeighborhoodProfilePage: React.FC = () => {
             {d.air_quality_index != null && <StatItem label={t('layer.air_quality')} value={formatDecimal(d.air_quality_index)} />}
             {d.tree_canopy_pct != null && <StatItem label={t('layer.tree_canopy')} value={formatPct(d.tree_canopy_pct)} />}
             {d.water_proximity_m != null && <StatItem label={t('layer.water_proximity')} value={`${formatNumber(Math.round(d.water_proximity_m))} m`} />}
-            {d.noise_pollution != null && <StatItem label={t('layer.noise_pollution')} value={d.noise_pollution === NOISE_FLOOR_DB ? t('noise.outside_zones') : `${formatDecimal(d.noise_pollution)} dB`} />}
+            {d.noise_pollution != null && <StatItem label={t('layer.noise_pollution')} value={d.noise_floor_db != null ? formatNoise(d.noise_pollution, d.noise_floor_db) : `${formatDecimal(d.noise_pollution)} dB`} />}
             {/* 0–100 index — the map legend already writes it "68/100"; a bare
                 "68.0" here left the reader guessing at the scale. */}
             {d.walkability_index != null && <StatItem label={t('layer.walkability')} value={`${formatDecimal(d.walkability_index, 0)}/100`} />}

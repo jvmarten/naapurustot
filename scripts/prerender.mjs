@@ -428,8 +428,12 @@ function fmtNum(n, decimals, lang) {
   });
 }
 
-/** Mirrors src/utils/colorScales.ts NOISE_FLOOR_DB. */
+/** Mirrors src/utils/colorScales.ts NOISE_FLOOR_DB / formatNoise. */
 const NOISE_FLOOR_DB = 40;
+/** An area no mapped noise zone reaches: quiet, under its survey's lowest zone. */
+function noiseText(props, lang) {
+  return LOCALES[lang]['noise.quiet_below'].replace('{db}', String(props.noise_floor_db));
+}
 
 /** Human-readable formatting of a metric value for the visible fallback. */
 function formatMetric(value, fmt, lang) {
@@ -443,9 +447,9 @@ function formatMetric(value, fmt, lang) {
     case 'pct': return `${fmtNum(n, 1, lang)} %`;
     case 'sqm': return `${fmtNum(n, 1, lang)} m²`;
     case 'meters': return `${fmtNum(Math.round(n), 0, lang)} m`;
-    // 40 dB is the noise pipeline's floor for an area no mapped zone reaches — quieter
-    // than the lowest zone, by an unknown amount — not a reading (NOISE_FLOOR_DB).
-    case 'db': return n === NOISE_FLOOR_DB ? LOCALES[lang]['noise.outside_zones'] : `${fmtNum(n, 1, lang)} dB`;
+    // 40 dB is the noise pipeline's background for ground outside every mapped zone, not
+    // a reading (NOISE_FLOOR_DB). Rows with the area's bound go through noiseText.
+    case 'db': return n === NOISE_FLOOR_DB ? LOCALES[lang]['noise.quiet'] : `${fmtNum(n, 1, lang)} dB`;
     case 'year': return String(Math.round(n));
     case 'years': return `${fmtNum(n, 1, lang)} ${LOCALES[lang]['profile.unit_years']}`;
     case 'int': return fmtNum(Math.round(n), 0, lang);
@@ -1100,7 +1104,9 @@ function buildNoscriptContent(props, lang) {
     lines.push('      <table><tbody>');
     for (const m of section.rows) {
       const label = escapeHtml(resolveLabel(m.label, lang));
-      const value = escapeHtml(formatMetric(props[m.prop], m.fmt, lang));
+      const value = escapeHtml(m.prop === 'noise_pollution' && props.noise_floor_db != null
+        ? noiseText(props, lang)
+        : formatMetric(props[m.prop], m.fmt, lang));
       lines.push(`        <tr><th scope="row">${label}</th><td>${value}</td></tr>`);
     }
     lines.push('      </tbody></table>');
@@ -1237,7 +1243,7 @@ function buildJsonLd(props, center, url, lang) {
       if (v == null || !Number.isFinite(Number(v))) continue;
       // The noise floor is a bound, not a value: publishing it as a PropertyValue
       // would state a measured 40 dB in machine-readable form.
-      if (m.fmt === 'db' && Number(v) === NOISE_FLOOR_DB) continue;
+      if (m.prop === 'noise_pollution' && props.noise_floor_db != null) continue;
       additionalProperty.push({
         '@type': 'PropertyValue',
         name: m.schema,

@@ -294,7 +294,14 @@ def election_props(election: dict, deso: str) -> dict:
 
 LATER_KEYS = ["rent_sqm_month_sek", "house_price_sek", "house_price_change_pct", "broadband_coverage_pct",
               "traffic_accident_rate", "construction_activity", "population_projection_pct",
-              "noise_pollution"]
+              "noise_pollution", "noise_floor_db"]
+
+# fetch_se_noise.py: the EEA's lowest Lden class is 55-60 dB, and ground outside every
+# contour counts at 40 dB. An area at exactly 40.0 has no mapped zone on it (or too
+# little to move the rounded mean), so it is known only to be quieter than 55 dB:
+# noise_floor_db carries that bound for the display, as Finland's does.
+SE_NOISE_BACKGROUND_DB = 40.0
+SE_NOISE_LOWEST_ZONE_DB = 55
 
 
 def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: str) -> dict:
@@ -313,6 +320,7 @@ def later_props(layers: dict, noise: dict, district_of: dict[str, str], deso: st
         "construction_activity": layers["construction"]["kommuner"].get(kommun),
         "population_projection_pct": layers["projection"]["kommuner"].get(kommun),
         "noise_pollution": noise["values"].get(deso),
+        "noise_floor_db": SE_NOISE_LOWEST_ZONE_DB if noise["values"].get(deso) == SE_NOISE_BACKGROUND_DB else None,
     }
 
 

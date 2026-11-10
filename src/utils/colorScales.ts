@@ -259,13 +259,18 @@ const gini = (v: number) => `${v.toFixed(2)}`;
 const score = (v: number) => `${v.toFixed(0)}/100`;
 const radiance = (v: number) => `${v.toFixed(1)} nW/cm²/sr`;
 /**
- * The noise pipeline (`fetch_noise_pollution.py`, `se/fetch_se_noise.py`) gives an area no
- * mapped noise zone reaches exactly this value. It is not a measurement: the area is only
- * known to be quieter than the lowest zone its survey mapped (55 dB in Sweden's EU noise
- * mapping; the Finnish surveys differ), and by how much is unknown. So it is printed as what it is, never as "40.0 dB".
+ * Ground outside every mapped noise zone counts at this value in the noise pipeline
+ * (`fetch_noise_pollution.py`, `se/fetch_se_noise.py`), and an area no zone reaches gets
+ * exactly it. That is not a reading: such an area is quieter than its survey's lowest
+ * zone, by an unknown amount, so it scores as quiet and prints as quiet — with the
+ * bound (`noise_floor_db`) wherever the area's properties are at hand (formatNoise).
  */
 export const NOISE_FLOOR_DB = 40;
-const decibel = (v: number) => (v === NOISE_FLOOR_DB ? t('noise.outside_zones') : `${v.toFixed(1)} dB`);
+const decibel = (v: number) => (v === NOISE_FLOOR_DB ? t('noise.quiet') : `${v.toFixed(1)} dB`);
+/** The noise value as text, using the area's bound when no mapped zone reaches it. */
+export function formatNoise(value: number, floorDb: number | null | undefined): string {
+  return floorDb != null ? t('noise.quiet_below').replace('{db}', String(floorDb)) : decibel(value);
+}
 // CF-19: radon median concentration (whole Bq/m³); CF-21: morbidity index (100 = avg).
 const bq = (v: number) => `${numFmt().format(Math.round(v))} Bq/m³`;
 const years = (v: number) => `${v.toFixed(1)} v`;

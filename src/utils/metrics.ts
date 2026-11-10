@@ -326,6 +326,10 @@ export interface NeighborhoodProperties {
   schools?: Array<{ name: string; score: number }> | null;
   light_pollution: number | null;
   noise_pollution: number | null;
+  /** Set when no mapped noise zone reaches the area: the lower edge (dB) of its survey's
+   *  lowest zone, which the area is known to be quieter than. noise_pollution is then the
+   *  40 dB background, so it still scores as quiet. */
+  noise_floor_db?: number | null;
   // Phase 10: Water proximity & building age
   /** Minimum distance to nearest water body (meters) */
   water_proximity_m: number | null;
