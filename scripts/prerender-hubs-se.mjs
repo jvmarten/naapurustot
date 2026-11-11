@@ -297,6 +297,7 @@ ${areaRows(muni.features, lang, h)}
         </tbody>
       </table>
       <p class="note">${escapeHtml(T.sources)}</p>
+${h.bestLink?.(muni.name, lang) ?? ''}
       <p><a href="${regionHref}">← ${regionEsc}</a></p>`;
 
   const collection = {
@@ -371,6 +372,7 @@ ${stats}
       </table>` : ''}
       <h2>${escapeHtml(T.munisHeading)}</h2>
       <p>${munis}</p>
+${h.bestRegionNav?.(region, lang) ?? ''}
       <h2>${escapeHtml(T.areasHeading)}</h2>
       <table>
         <caption>${escapeHtml(T.tableCaption(name))}</caption>
