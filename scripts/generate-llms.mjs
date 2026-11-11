@@ -184,7 +184,8 @@ const pubNames = [...new Set(Object.values(registry.metrics ?? {})
   .map((m) => registry.publishers?.[m.publisher]?.name)
   .filter(Boolean))];
 const sourcesSentence = `Primary data sources: ${pubNames.join(', ')}. ` +
-  'Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.';
+  'Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL. ' +
+  'Swedish areas use Statistics Sweden (SCB) DeSO statistics and other Swedish public sources.';
 let brief = readFileSync(r('public/llms.txt'), 'utf-8');
 brief = brief.replace(/Primary data sources:[^\n]*\n/, sourcesSentence + '\n');
 const BRIEF_PLANNING_HEADING = '## Kaavat ja hankkeet (planning & infrastructure)';

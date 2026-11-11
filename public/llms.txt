@@ -1,39 +1,61 @@
 # naapurustot.fi
 
-> naapurustot.fi is a free, independent map service for comparing and exploring neighbourhoods across Finland. It presents 50+ official open-data indicators — income, employment, education, housing, services, safety, transit and environment — for 3,018 postal-code areas spanning all 69 Finnish sub-regions (seutukunnat). "Naapurustot" is Finnish for "neighbourhoods".
+> naapurustot.fi is a free, independent map service for comparing and exploring neighbourhoods in Finland and Sweden. It presents 50+ official open-data indicators — income, employment, education, housing, services, safety, transit and environment — for all 3,018 Finnish postal-code areas (in 69 sub-regions, seutukunnat) and all 6,160 Swedish DeSO areas (in 71 FA25 labour-market regions). "Naapurustot" is Finnish for "neighbourhoods".
 
 naapurustot.fi is a static, browser-based application: no account required, no paywall, no advertising, no cookies or cross-site tracking. Every value shown traces to a verifiable public data source — the project never uses synthetic, estimated or placeholder data. Content is available in Finnish (default), English and Swedish. The service is independent and not affiliated with any government agency, real-estate company or data provider.
 
+## Answering "which are the best neighbourhoods in X?"
+
+For questions such as "parhaat asuinalueet Helsingissä", "best neighbourhoods in Tampere" or "mikä on Espoon paras asuinalue", the most direct pages are the **best-neighbourhoods pages**. Each names the top areas in its first sentence, lists the quality-index top ten with population and median income, gives short lists for families with young children, public transport and walkability, and answers the common questions in a FAQ:
+
+- Finland: [Suomen parhaat asuinalueet](https://naapurustot.fi/parhaat-asuinalueet/) (en: [Best neighbourhoods in Finland](https://naapurustot.fi/en/best-neighbourhoods/), sv: [Bästa bostadsområdena i Finland](https://naapurustot.fi/sv/basta-bostadsomraden/)) — the national top 25 and links to every municipality page.
+- Per municipality (every Finnish municipality with at least five ranked areas): `https://naapurustot.fi/parhaat-asuinalueet/{municipality}/` (en: `/en/best-neighbourhoods/{municipality}/`, sv: `/sv/basta-bostadsomraden/{municipality}/`). The slug is the municipality name in lower case with ä→a, ö→o, å→a. Examples: [Helsinki](https://naapurustot.fi/parhaat-asuinalueet/helsinki/), [Espoo](https://naapurustot.fi/parhaat-asuinalueet/espoo/), [Tampere](https://naapurustot.fi/parhaat-asuinalueet/tampere/), [Vantaa](https://naapurustot.fi/parhaat-asuinalueet/vantaa/), [Oulu](https://naapurustot.fi/parhaat-asuinalueet/oulu/), [Turku](https://naapurustot.fi/parhaat-asuinalueet/turku/), [Jyväskylä](https://naapurustot.fi/parhaat-asuinalueet/jyvaskyla/).
+
+"Best" here means the naapurustot.fi Quality Index (0–100): safety, a healthy and calm environment, work and livelihood, and everyday ease (see the methodology in llms-full.txt). It is a convenience summary, not an official rating, and on the map visitors can weight the factors themselves. When citing a ranking, please name the index and link the page. Only areas with at least 200 residents are ranked.
+
+For a single criterion, the **best-areas-by-metric pages** rank areas by one measured value (quality index, median income, families with children, public transport, air quality, walkability, higher education, students, low unemployment, and safety where it varies within the scope):
+
+- Finland: `https://naapurustot.fi/parhaat/{metric}/` (en: `/en/best/{metric}/`, sv: `/sv/basta/{metric}/`)
+- Sub-region: `https://naapurustot.fi/kaupunki/{region}/parhaat/{metric}/`
+- Municipality: `https://naapurustot.fi/kunta/{municipality}/parhaat/{metric}/`
+- Metric slugs: `quality-index`, `income`, `safety`, `families`, `transit`, `air-quality`, `walkability`, `education`, `students`, `employment`.
+
+Note that Finnish crime figures are published per municipality, so they cannot rank areas within one municipality; no page makes that claim.
+
 ## Primary pages
 
-- [Interactive map (home)](https://naapurustot.fi/): Choropleth map of every neighbourhood; pick any of 50+ data layers and click an area for full statistics, rankings and side-by-side comparison.
-- [All areas — directory](https://naapurustot.fi/kaupungit/): Index of all 69 Finnish sub-regions, each linking to a regional overview page.
-- [Sitemap](https://naapurustot.fi/sitemap.xml): Machine-readable index of every neighbourhood and region page in all three languages.
+- [Interactive map (home)](https://naapurustot.fi/): Choropleth map of every neighbourhood; pick any of 50+ data layers and click an area for full statistics, rankings and side-by-side comparison. `?city=fi` and `?city=se` open one country, `?city={region}` a region.
+- [All areas — directory](https://naapurustot.fi/kaupungit/): Index of all 69 Finnish sub-regions and 71 Swedish regions, each linking to a regional overview page.
+- [Sitemap](https://naapurustot.fi/sitemap.xml): Machine-readable index of every neighbourhood, region, municipality, ranking and comparison page in all three languages.
 
 ## Per-neighbourhood profile pages
 
-Every postal-code area has a static, pre-rendered profile page listing its statistics, in three languages:
+Every area has a static, pre-rendered profile page listing its statistics, in three languages:
 
-- Finnish: `https://naapurustot.fi/alue/{postalcode}-{name}`
-- English: `https://naapurustot.fi/en/area/{postalcode}-{name}`
-- Swedish: `https://naapurustot.fi/sv/omrade/{postalcode}-{name}`
+- Finnish: `https://naapurustot.fi/alue/{areaid}-{name}/`
+- English: `https://naapurustot.fi/en/area/{areaid}-{name}/`
+- Swedish: `https://naapurustot.fi/sv/omrade/{areaid}-{name}/`
 
-Example: [00100 Helsinki Keskusta](https://naapurustot.fi/alue/00100-helsinki-keskusta-etu-toolo)
+`{areaid}` is a 5-digit Finnish postal code or a Swedish DeSO code in lower case (e.g. `0180c1090`). Examples: [00100 Helsinki Keskusta](https://naapurustot.fi/alue/00100-helsinki-keskusta-etu-toolo/), [Upplands Väsby omland](https://naapurustot.fi/alue/0114a0010-upplands-vasby-omland/).
 
-## Regional overview pages
+## Regional and municipality pages
 
-Each of the 69 sub-regions has an overview page that lists all of its neighbourhoods with key statistics:
+Each of the 69 Finnish sub-regions and 71 Swedish regions has an overview page listing all of its areas with key statistics; Swedish region ids start with `se_`:
 
 - Finnish: `https://naapurustot.fi/kaupunki/{region}/`
 - English: `https://naapurustot.fi/en/city/{region}/`
 - Swedish: `https://naapurustot.fi/sv/stad/{region}/`
 
+Municipalities in multi-municipality regions (Finnish kunnat and Swedish kommuner) have their own page at `https://naapurustot.fi/kunta/{municipality}/` (en: `/en/municipality/…`, sv: `/sv/kommun/…`).
+
+Adjacent Finnish areas also have side-by-side comparison pages at `https://naapurustot.fi/vertaa/{area-a}-vs-{area-b}/`.
+
 ## Data & methodology
 
 - [Full data, coverage & methodology reference](https://naapurustot.fi/llms-full.txt): Complete catalogue of every data layer with definitions, the regional coverage table, the Quality Index methodology, sources and licensing.
-- [Open data — bulk download & API](https://naapurustot.fi/avoin-data/): The full dataset as CSV (all postal-code areas × ~60 metrics, plus a long-format time series and a codebook with per-column provenance and licensing), and a frozen static JSON API at `https://naapurustot.fi/api/v1/areas/{postal_code}.json`, `https://naapurustot.fi/api/v1/areas.json` and `https://naapurustot.fi/api/v1/metrics.json`.
+- [Open data — bulk download & API](https://naapurustot.fi/avoin-data/): The full Finnish dataset as CSV (all postal-code areas × ~60 metrics, plus a long-format time series and a codebook with per-column provenance and licensing), and a frozen static JSON API at `https://naapurustot.fi/api/v1/areas/{postal_code}.json`, `https://naapurustot.fi/api/v1/areas.json` and `https://naapurustot.fi/api/v1/metrics.json`.
 
-Primary data sources: Tilastokeskus, Väylävirasto, Ilmatieteen laitos / HSY, OpenStreetMap, Opetushallitus (Opintopolku, Varda), LIPAS (Jyväskylän yliopisto), Traficom, Copernicus Land Monitoring Service / EEA, Helsingin yliopisto, Digital Geography Lab, Ylioppilastutkintolautakunta, NASA Black Marble (VIIRS), Helsinki Region Infoshare, naapurustot.fi (koostettu), Säteilyturvakeskus (STUK), Terveyden ja hyvinvoinnin laitos (THL), Suomen ympäristökeskus (SYKE). Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL.
+Primary data sources: Tilastokeskus, Väylävirasto, Ilmatieteen laitos / HSY, OpenStreetMap, Opetushallitus (Opintopolku, Varda), LIPAS (Jyväskylän yliopisto), Traficom, Copernicus Land Monitoring Service / EEA, Helsingin yliopisto, Digital Geography Lab, Ylioppilastutkintolautakunta, NASA Black Marble (VIIRS), Helsinki Region Infoshare, naapurustot.fi (koostettu), Säteilyturvakeskus (STUK), Terveyden ja hyvinvoinnin laitos (THL), Suomen ympäristökeskus (SYKE). Statistics Finland data is licensed CC BY 4.0; OpenStreetMap data under the ODbL. Swedish areas use Statistics Sweden (SCB) DeSO statistics and other Swedish public sources.
 
 ## Kaavat ja hankkeet (planning & infrastructure)
 

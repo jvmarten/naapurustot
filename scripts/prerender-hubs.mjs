@@ -11,6 +11,7 @@
  *   dist/kaupunki/{region}/index.html  per-region hub        (fi)
  *   dist/en/city/{region}/index.html                         (en)
  *   dist/sv/stad/{region}/index.html                         (sv)
+ *   dist/parhaat-asuinalueet/[{kunta}/]index.html "best neighbourhoods" (fi; en/sv alike)
  *
  * Run after `npm run build`:  node scripts/prerender-hubs.mjs
  */
@@ -839,6 +840,20 @@ function isRankable(f, metric) {
   return typeof pop === 'number' && pop >= MIN_RANKED_POPULATION;
 }
 
+/**
+ * May `features` carry a ranking page for `metric` — at least `min` rankable areas whose
+ * values are NOT all identical?
+ *
+ * A municipality-level value distributed to its postal codes (`is_proxy` in the registry —
+ * crime is one) gives every area of a municipality the same number, so a municipality's
+ * "safest areas" list was a tie of 84 identical values sorted in file order: a ranked claim
+ * that nothing measured. Requiring a spread keeps such scopes from emitting a page at all.
+ */
+function hasRankableSpread(features, metric, min) {
+  const values = features.filter((f) => isRankable(f, metric)).map((f) => f.properties[metric.property]);
+  return values.length >= min && new Set(values).size > 1;
+}
+
 /** Rank a feature list by a metric (direction-aware); returns the top-N covered. */
 function rankFeatures(features, metric, topN) {
   const covered = features.filter((f) => isRankable(f, metric));
@@ -978,6 +993,326 @@ ${rows}
   });
 }
 
+// ---------------------------------------------------------------------------
+// "Parhaat asuinalueet" pages: /parhaat-asuinalueet/ and /parhaat-asuinalueet/{kunta}/.
+//
+// The per-metric ranking pages above answer "best areas for <metric> in <scope>". People
+// (and the assistants answering for them) ask the plain question instead — "Helsingin
+// parhaat asuinalueet", "paras asuinalue Espoossa" — and those words appeared on no page.
+// One page per municipality (and one for Finland) answers it in the searcher's own
+// phrasing: a quotable lead sentence naming the top areas, the quality-index top ten, short
+// lists for families / transit / walkability, and a visible FAQ mirrored in FAQPage JSON-LD.
+//
+// Every number is a value the map already shows. Nothing ranks on a metric whose values
+// are all identical within the scope (hasRankableSpread) — crime is a municipality-level
+// proxy, so there is deliberately no "safest area in <kunta>" claim here.
+// ---------------------------------------------------------------------------
+
+const BEST_PREFIX = { fi: '/parhaat-asuinalueet', en: '/en/best-neighbourhoods', sv: '/sv/basta-bostadsomraden' };
+const BEST_TOP_N = 10;
+const BEST_NATIONAL_TOP_N = 25;
+const BEST_SIDE_TOP_N = 3;
+const BEST_MIN_RANKED = 5;
+const BEST_SIDE_SLUGS = ['families', 'transit', 'walkability'];
+
+function bestPath(slug, lang) { return slug ? `${BEST_PREFIX[lang]}/${slug}/` : `${BEST_PREFIX[lang]}/`; }
+function bestUrl(slug, lang) { return `${ORIGIN}${bestPath(slug, lang)}`; }
+function bestAlternates(slug) { return Object.fromEntries(LANGS.map((l) => [l, bestUrl(slug, l)])); }
+
+// Finnish genitive of each municipality name, for "Helsingin parhaat asuinalueet" — the form
+// people type. Inflection is not derivable by rule (Lahti → Lahden, Uusikaupunki →
+// Uudenkaupungin, Parainen → Paraisten), so it is a table; a municipality missing from it
+// falls back to "… kunnassa X", which is grammatical for every name.
+const FI_GENITIVE = {
+  Helsinki: 'Helsingin', Espoo: 'Espoon', Tampere: 'Tampereen', Vantaa: 'Vantaan', Oulu: 'Oulun',
+  Turku: 'Turun', Jyväskylä: 'Jyväskylän', Kuopio: 'Kuopion', Lahti: 'Lahden', Pori: 'Porin',
+  Joensuu: 'Joensuun', Kouvola: 'Kouvolan', Vaasa: 'Vaasan', Hämeenlinna: 'Hämeenlinnan',
+  Seinäjoki: 'Seinäjoen', Rovaniemi: 'Rovaniemen', Lappeenranta: 'Lappeenrannan', Mikkeli: 'Mikkelin',
+  Porvoo: 'Porvoon', Salo: 'Salon', Kotka: 'Kotkan', Kokkola: 'Kokkolan', Hyvinkää: 'Hyvinkään',
+  Järvenpää: 'Järvenpään', Lohja: 'Lohjan', Nurmijärvi: 'Nurmijärven', Tuusula: 'Tuusulan',
+  Kirkkonummi: 'Kirkkonummen', Rauma: 'Rauman', Kaarina: 'Kaarinan', Kerava: 'Keravan',
+  Kajaani: 'Kajaanin', Nokia: 'Nokian', Kangasala: 'Kangasalan', Ylöjärvi: 'Ylöjärven',
+  Savonlinna: 'Savonlinnan', Riihimäki: 'Riihimäen', Vihti: 'Vihdin', Raasepori: 'Raaseporin',
+  Raisio: 'Raision', Imatra: 'Imatran', Lempäälä: 'Lempäälän', Raahe: 'Raahen', Sastamala: 'Sastamalan',
+  Sipoo: 'Sipoon', Pietarsaari: 'Pietarsaaren', Hollola: 'Hollolan', Siilinjärvi: 'Siilinjärven',
+  Pirkkala: 'Pirkkalan', Valkeakoski: 'Valkeakosken', Tornio: 'Tornion', Iisalmi: 'Iisalmen',
+  Naantali: 'Naantalin', Mustasaari: 'Mustasaaren', Varkaus: 'Varkauden', Kurikka: 'Kurikan',
+  Kempele: 'Kempeleen', Hamina: 'Haminan', Kemi: 'Kemin', Laukaa: 'Laukaan', Jämsä: 'Jämsän',
+  Mäntsälä: 'Mäntsälän', Lieto: 'Liedon', Forssa: 'Forssan', Heinola: 'Heinolan',
+  Äänekoski: 'Äänekosken', Pieksämäki: 'Pieksämäen', Akaa: 'Akaan', Taipalsaari: 'Taipalsaaren',
+  Janakkala: 'Janakkalan', Orimattila: 'Orimattilan', Ylivieska: 'Ylivieskan', Loimaa: 'Loimaan',
+  Kauhava: 'Kauhavan', Kontiolahti: 'Kontiolahden', Uusikaupunki: 'Uudenkaupungin',
+  Parainen: 'Paraisten', Kuusamo: 'Kuusamon', Loviisa: 'Loviisan', Lapua: 'Lapuan',
+  Kauhajoki: 'Kauhajoen', Kankaanpää: 'Kankaanpään', Ilmajoki: 'Ilmajoen', Ulvila: 'Ulvilan',
+  Kalajoki: 'Kalajoen', Liperi: 'Liperin', Paimio: 'Paimion', Eura: 'Euran', Hämeenkyrö: 'Hämeenkyrön',
+  Alavus: 'Alavuden', Nivala: 'Nivalan', Muurame: 'Muuramen', Kauniainen: 'Kauniaisten',
+  Liminka: 'Limingan', Sotkamo: 'Sotkamon', Lieksa: 'Lieksan', 'Mänttä-Vilppula': 'Mänttä-Vilppulan',
+  Ii: 'Iin', Huittinen: 'Huittisten', Kitee: 'Kiteen', Närpiö: 'Närpiön', Masku: 'Maskun',
+  Keuruu: 'Keuruun', Hattula: 'Hattulan', Alajärvi: 'Alajärven', Eurajoki: 'Eurajoen',
+  Nurmes: 'Nurmeksen', Leppävirta: 'Leppävirran', Saarijärvi: 'Saarijärven', Orivesi: 'Oriveden',
+  Muhos: 'Muhoksen', Lapinlahti: 'Lapinlahden', Karkkila: 'Karkkilan', Somero: 'Someron',
+  Laitila: 'Laitilan', Sodankylä: 'Sodankylän', Pöytyä: 'Pöytyän', Asikkala: 'Asikkalan',
+  Keminmaa: 'Keminmaan', Hanko: 'Hangon', Laihia: 'Laihian', Loppi: 'Lopen',
+  Uusikaarlepyy: 'Uudenkaarlepyyn', Kuhmo: 'Kuhmon', Mynämäki: 'Mynämäen', Kiuruvesi: 'Kiuruveden',
+  Pudasjärvi: 'Pudasjärven', Suomussalmi: 'Suomussalmen', Mäntyharju: 'Mäntyharjun', Inari: 'Inarin',
+  Kemijärvi: 'Kemijärven', Hausjärvi: 'Hausjärven', Suonenjoki: 'Suonenjoen', Oulainen: 'Oulaisten',
+  Ikaalinen: 'Ikaalisten', Harjavalta: 'Harjavallan', Kokemäki: 'Kokemäen', Haapajärvi: 'Haapajärven',
+  Askola: 'Askolan', Hankasalmi: 'Hankasalmen', Iitti: 'Iitin', Inkoo: 'Inkoon', Kemiönsaari: 'Kemiönsaaren',
+  Kittilä: 'Kittilän', Kristiinankaupunki: 'Kristiinankaupungin', Kuortane: 'Kuortaneen',
+  Lapinjärvi: 'Lapinjärven', Maalahti: 'Maalahden', Pälkäne: 'Pälkäneen', Pyhtää: 'Pyhtään',
+  Säkylä: 'Säkylän', Sievi: 'Sievin', Siikajoki: 'Siikajoen', Tammela: 'Tammelan', Teuva: 'Teuvan',
+  Urjala: 'Urjalan', Uurainen: 'Uuraisten', Virrat: 'Virtain', Vöyri: 'Vöyrin',
+  'Pedersören kunta': 'Pedersören kunnan',
+};
+
+/** "A, B ja C" / "A, B and C" / "A, B och C". */
+function joinNames(names, lang) {
+  if (names.length <= 1) return names.join('');
+  const and = { fi: 'ja', en: 'and', sv: 'och' }[lang];
+  return `${names.slice(0, -1).join(', ')} ${and} ${names[names.length - 1]}`;
+}
+
+// `place` is null for Finland, else the municipality name. Finnish phrasings take the
+// genitive where the table has one, else the "kunnassa X" form.
+const BEST_TEXT = {
+  fi: {
+    best: (place) => !place ? 'Suomen parhaat asuinalueet'
+      : FI_GENITIVE[place] ? `${FI_GENITIVE[place]} parhaat asuinalueet` : `Parhaat asuinalueet kunnassa ${place}`,
+    bestLower: (place) => !place ? 'Suomen parhaat asuinalueet'
+      : FI_GENITIVE[place] ? `${FI_GENITIVE[place]} parhaat asuinalueet` : `parhaat asuinalueet kunnassa ${place}`,
+    title: (h, y) => `${h} ${y} – vertailu avoimella datalla | naapurustot.fi`,
+    desc: (place, top, n) => `${BEST_TEXT.fi.best(place)} naapurustot.fi:n laatuindeksin mukaan: ${top}. ${n} postinumeroaluetta vertailtuna – turvallisuus, ympäristö, työ ja tulot, arjen sujuvuus.`,
+    lead: (place, top) => `naapurustot.fi:n laatuindeksin mukaan ${BEST_TEXT.fi.bestLower(place)} ovat ${top}.`,
+    method: (n, pop) => `Laatuindeksi (0–100) yhdistää neljä asiaa: turvallisuuden, terveellisen ja rauhallisen ympäristön (ilmanlaatu, puusto, melu, vesistöt), työn ja toimeentulon sekä arjen sujuvuuden (käveltävyys, joukkoliikenne, palvelut). Vertailussa on ${n} postinumeroaluetta, joilla on vähintään ${pop} asukasta. Kaikki luvut ovat avointa julkista dataa, pääosin Tilastokeskuksen Paavo-aineistosta.`,
+    scope: (n, pop) => `Vertailussa on ${n} postinumeroaluetta, joilla on vähintään ${pop} asukasta. Kaikki luvut ovat avointa julkista dataa, pääosin Tilastokeskuksen Paavo-aineistosta – laskentatapa on kerrottu alempana.`,
+    unit: { transit: ' pysäkkiä/km²' },
+    tableCaption: (place) => !place ? 'Suomen parhaat postinumeroalueet laatuindeksillä' : `${BEST_TEXT.fi.best(place)} laatuindeksillä`,
+    colIndex: 'Laatuindeksi', colMuni: 'Kunta',
+    sideHeading: 'Parhaat alueet sen mukaan, mitä arvostat',
+    side: {
+      families: 'Lapsiperheille – suurin pienten lasten (0–6 v.) osuus',
+      transit: 'Joukkoliikenne – tihein pysäkkiverkko',
+      walkability: 'Käveltävyys – korkein käveltävyysindeksi',
+    },
+    fullList: 'Koko lista →',
+    faqHeading: 'Usein kysyttyä',
+    qBest: (place) => !place ? 'Mikä on Suomen paras asuinalue?'
+      : FI_GENITIVE[place] ? `Mikä on ${FI_GENITIVE[place]} paras asuinalue?` : `Mikä on paras asuinalue kunnassa ${place}?`,
+    aBest: (name, pno, qi, second) => `naapurustot.fi:n laatuindeksillä mitattuna paras on ${name} (${pno}), indeksi ${qi}/100.${second ? ` Seuraavina tulevat ${second}.` : ''} "Paras" riippuu kuitenkin siitä, mitä arvostat – kartalla voit painottaa mittareita itse.`,
+    qFamilies: (place) => !place ? 'Millä Suomen asuinalueilla on eniten lapsiperheitä?'
+      : FI_GENITIVE[place] ? `Millä ${FI_GENITIVE[place]} asuinalueella asuu eniten lapsiperheitä?` : `Millä asuinalueella kunnassa ${place} asuu eniten lapsiperheitä?`,
+    aFamilies: (name, pno, v) => `Pienten lasten (0–6 v.) osuus väestöstä on suurin alueella ${name} (${pno}): ${v}.`,
+    qMethod: 'Miten parhaat asuinalueet on laskettu?',
+    aMethod: (n, pop) => BEST_TEXT.fi.method(n, pop),
+    mapCta: (place) => place ? `Avaa ${place} kartalla` : 'Avaa Suomen kartta',
+    hubLink: (place) => `${place}: kaikki postinumeroalueet →`,
+    muniHeading: 'Parhaat asuinalueet kunnittain',
+    crumb: 'Parhaat asuinalueet',
+  },
+  en: {
+    best: (place) => place ? `Best neighbourhoods in ${place}` : 'Best neighbourhoods in Finland',
+    bestLower: (place) => place ? `the best neighbourhoods in ${place}` : 'the best neighbourhoods in Finland',
+    title: (h, y) => `${h} (${y}) – compared with open data | naapurustot.fi`,
+    desc: (place, top, n) => `${BEST_TEXT.en.best(place)} by the naapurustot.fi quality index: ${top}. ${n} postal code areas compared on safety, environment, work and income, and everyday ease.`,
+    lead: (place, top) => `By the naapurustot.fi quality index, ${BEST_TEXT.en.bestLower(place)} are ${top}.`,
+    method: (n, pop) => `The quality index (0–100) combines four things: safety, a healthy and calm environment (air quality, tree canopy, noise, water), work and livelihood, and everyday ease (walkability, public transport, services). ${n} postal code areas with at least ${pop} residents are compared. Every figure is open public data, mostly Statistics Finland's Paavo dataset.`,
+    scope: (n, pop) => `${n} postal code areas with at least ${pop} residents are compared. Every figure is open public data, mostly from Statistics Finland's Paavo dataset – the method is explained below.`,
+    unit: { transit: ' stops/km²' },
+    tableCaption: (place) => place ? `Best postal code areas in ${place} by quality index` : 'Best postal code areas in Finland by quality index',
+    colIndex: 'Quality index', colMuni: 'Municipality',
+    sideHeading: 'Best areas for what you value',
+    side: {
+      families: 'Families – highest share of young children (0–6)',
+      transit: 'Public transport – densest stop network',
+      walkability: 'Walkability – highest walkability index',
+    },
+    fullList: 'Full list →',
+    faqHeading: 'Frequently asked questions',
+    qBest: (place) => place ? `What is the best neighbourhood in ${place}?` : 'What is the best neighbourhood in Finland?',
+    aBest: (name, pno, qi, second) => `By the naapurustot.fi quality index, the best is ${name} (${pno}), scoring ${qi}/100.${second ? ` Next come ${second}.` : ''} What counts as "best" depends on what you value – the map lets you weight the indicators yourself.`,
+    qFamilies: (place) => place ? `Which neighbourhood in ${place} has the most families with children?` : 'Which neighbourhoods in Finland have the most families with children?',
+    aFamilies: (name, pno, v) => `The share of young children (0–6) in the population is highest in ${name} (${pno}): ${v}.`,
+    qMethod: 'How are the best neighbourhoods calculated?',
+    aMethod: (n, pop) => BEST_TEXT.en.method(n, pop),
+    mapCta: (place) => place ? `Open ${place} on the map` : 'Open the map of Finland',
+    hubLink: (place) => `${place}: all postal code areas →`,
+    muniHeading: 'Best neighbourhoods by municipality',
+    crumb: 'Best neighbourhoods',
+  },
+  sv: {
+    best: (place) => place ? `Bästa bostadsområdena i ${place}` : 'Bästa bostadsområdena i Finland',
+    bestLower: (place) => place ? `de bästa bostadsområdena i ${place}` : 'de bästa bostadsområdena i Finland',
+    title: (h, y) => `${h} ${y} – jämförda med öppna data | naapurustot.fi`,
+    desc: (place, top, n) => `${BEST_TEXT.sv.best(place)} enligt naapurustot.fi:s kvalitetsindex: ${top}. ${n} postnummerområden jämförda på säkerhet, miljö, arbete och inkomst samt vardagens smidighet.`,
+    lead: (place, top) => `Enligt naapurustot.fi:s kvalitetsindex är ${BEST_TEXT.sv.bestLower(place)} ${top}.`,
+    method: (n, pop) => `Kvalitetsindexet (0–100) kombinerar fyra saker: säkerhet, en hälsosam och lugn miljö (luftkvalitet, trädtäckning, buller, vatten), arbete och försörjning samt vardagens smidighet (gångvänlighet, kollektivtrafik, tjänster). ${n} postnummerområden med minst ${pop} invånare jämförs. Alla siffror är öppna offentliga data, främst Statistikcentralens Paavo-data.`,
+    scope: (n, pop) => `${n} postnummerområden med minst ${pop} invånare jämförs. Alla siffror är öppna offentliga data, främst Statistikcentralens Paavo-data – beräkningen förklaras nedan.`,
+    unit: { transit: ' hållplatser/km²' },
+    tableCaption: (place) => place ? `Bästa postnummerområdena i ${place} enligt kvalitetsindex` : 'Bästa postnummerområdena i Finland enligt kvalitetsindex',
+    colIndex: 'Kvalitetsindex', colMuni: 'Kommun',
+    sideHeading: 'Bästa områdena efter vad du värdesätter',
+    side: {
+      families: 'Barnfamiljer – största andelen småbarn (0–6 år)',
+      transit: 'Kollektivtrafik – tätast hållplatsnät',
+      walkability: 'Gångvänlighet – högst gångvänlighetsindex',
+    },
+    fullList: 'Hela listan →',
+    faqHeading: 'Vanliga frågor',
+    qBest: (place) => place ? `Vilket är det bästa bostadsområdet i ${place}?` : 'Vilket är det bästa bostadsområdet i Finland?',
+    aBest: (name, pno, qi, second) => `Mätt med naapurustot.fi:s kvalitetsindex är det bästa ${name} (${pno}), med ${qi}/100.${second ? ` Därefter kommer ${second}.` : ''} Vad som är "bäst" beror på vad du värdesätter – på kartan kan du vikta mätarna själv.`,
+    qFamilies: (place) => place ? `Vilket bostadsområde i ${place} har flest barnfamiljer?` : 'Vilka bostadsområden i Finland har flest barnfamiljer?',
+    aFamilies: (name, pno, v) => `Andelen småbarn (0–6 år) av befolkningen är störst i ${name} (${pno}): ${v}.`,
+    qMethod: 'Hur har de bästa bostadsområdena räknats fram?',
+    aMethod: (n, pop) => BEST_TEXT.sv.method(n, pop),
+    mapCta: (place) => place ? `Öppna ${place} på kartan` : 'Öppna Finlandskartan',
+    hubLink: (place) => `${place}: alla postnummerområden →`,
+    muniHeading: 'Bästa bostadsområdena per kommun',
+    crumb: 'Bästa bostadsområden',
+  },
+};
+
+const QI_METRIC = RANKING_METRICS.find((m) => m.slug === 'quality-index');
+const BEST_SIDE_METRICS = BEST_SIDE_SLUGS.map((s) => RANKING_METRICS.find((m) => m.slug === s));
+
+/**
+ * Build one "parhaat asuinalueet" page. `scope` is null (Finland) or a best-scope:
+ * { name, slug, regionId, features, hubPath(lang), rankPathFor(metric, lang) | null }.
+ */
+function buildBestPage(lang, scope, features, ranked, rankableCount) {
+  const T = BEST_TEXT[lang];
+  const place = scope ? scope.name : null;
+  const national = !scope;
+  const alternates = bestAlternates(scope ? scope.slug : null);
+  const canonical = alternates[lang];
+  const heading = T.best(place);
+  const qi = (f) => QI_METRIC.fmt(Number(f.properties.quality_index), lang);
+  const nameOf = (f) => getDisplayName(f.properties, lang);
+  const topNames = joinNames(ranked.slice(0, 3).map((f) => `${nameOf(f)} (${f.properties.pno})`), lang);
+  const popFloor = fmtNum(MIN_RANKED_POPULATION, lang);
+  const areaHref = (f) => `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(f.properties.pno, f.properties.nimi))}/`;
+
+  const muniCol = national ? `<th scope="col">${escapeHtml(T.colMuni)}</th>` : '';
+  const rows = ranked.map((f, i) => {
+    const p = f.properties;
+    const income = typeof p.hr_mtu === 'number' && p.hr_mtu > 0 ? `${fmtNum(Math.round(p.hr_mtu), lang)} €` : TEXT[lang].missing;
+    const muniCell = national ? `<td>${escapeHtml(p.municipality || '')}</td>` : '';
+    return `        <tr><td class="num">${i + 1}</td><td><a href="${areaHref(f)}">${escapeHtml(nameOf(f))}</a></td>` +
+      `<td>${escapeHtml(p.pno)}</td>${muniCell}<td class="num">${escapeHtml(fmtNum(Math.round(p.he_vakiy), lang))}</td>` +
+      `<td class="num">${escapeHtml(income)}</td><td class="num">${escapeHtml(qi(f))}</td></tr>`;
+  }).join('\n');
+
+  // Short lists for the other things people choose a neighbourhood by — only where the
+  // scope has a real spread of values to rank.
+  const sides = [];
+  for (const metric of BEST_SIDE_METRICS) {
+    if (!hasRankableSpread(features, metric, BEST_MIN_RANKED)) continue;
+    const top = rankFeatures(features, metric, BEST_SIDE_TOP_N);
+    const href = national ? rankPath(metric.slug, null, lang) : scope.rankPathFor(metric, lang);
+    const items = top.map((f) => `<li><a href="${areaHref(f)}">${escapeHtml(nameOf(f))}</a> <span class="muted">${escapeHtml(f.properties.pno)} · ${escapeHtml(metric.fmt(Number(f.properties[metric.property]), lang) + (T.unit[metric.slug] || ''))}</span></li>`).join('');
+    sides.push({ metric, top, html: `      <h3>${escapeHtml(T.side[metric.slug])}</h3>\n      <ul>${items}</ul>${href ? `\n      <p><a href="${href}">${escapeHtml(T.fullList)}</a></p>` : ''}` });
+  }
+
+  // FAQ — the visible answers and the FAQPage JSON-LD carry the same strings.
+  const first = ranked[0];
+  const second = joinNames(ranked.slice(1, 3).map((f) => `${nameOf(f)} (${f.properties.pno})`), lang);
+  const faqs = [{ q: T.qBest(place), a: T.aBest(nameOf(first), first.properties.pno, qi(first), second) }];
+  const fam = sides.find((s) => s.metric.slug === 'families');
+  if (fam) {
+    const f = fam.top[0];
+    faqs.push({ q: T.qFamilies(place), a: T.aFamilies(nameOf(f), f.properties.pno, fam.metric.fmt(Number(f.properties[fam.metric.property]), lang)) });
+  }
+  faqs.push({ q: T.qMethod, a: T.aMethod(fmtNum(rankableCount, lang), popFloor) });
+  const faqHtml = faqs.map((x) => `      <h3>${escapeHtml(x.q)}</h3>\n      <p>${escapeHtml(x.a)}</p>`).join('\n');
+
+  const mapHref = national
+    ? '/?city=fi&amp;layer=quality_index'
+    : `/?city=${escapeHtml(scope.regionId)}&amp;layer=quality_index`;
+  const crumbs = national
+    ? `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumb)}</p>`
+    : `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${bestPath(null, lang)}">${escapeHtml(T.crumb)}</a> / ${escapeHtml(place)}</p>`;
+
+  // National page: an index of every municipality page (the internal-link hub for the family).
+  const muniIndex = national
+    ? `      <h2>${escapeHtml(T.muniHeading)}</h2>\n      <p>${bestScopes.map((s) => `<a href="${bestPath(s.slug, lang)}">${escapeHtml(s.name)}</a>`).join(' · ')}</p>`
+    : `      <p><a href="${scope.hubPath(lang)}">${escapeHtml(T.hubLink(place))}</a> · <a href="${bestPath(null, lang)}">${escapeHtml(T.best(null))} →</a></p>`;
+
+  const body = `      ${crumbs}
+      <h1>${escapeHtml(heading)}</h1>
+      <p class="lead">${escapeHtml(T.lead(place, topNames))}</p>
+      <p>${escapeHtml(T.scope(fmtNum(rankableCount, lang), popFloor))}</p>
+      <table>
+        <caption>${escapeHtml(T.tableCaption(place))}</caption>
+        <thead><tr><th scope="col" class="num">${escapeHtml(RANK_TEXT[lang].colRank)}</th><th scope="col">${escapeHtml(RANK_TEXT[lang].colArea)}</th><th scope="col">${escapeHtml(TEXT[lang].colPostal)}</th>${muniCol}<th scope="col" class="num">${escapeHtml(TEXT[lang].colPopulation)}</th><th scope="col" class="num">${escapeHtml(TEXT[lang].colIncome)}</th><th scope="col" class="num">${escapeHtml(T.colIndex)}</th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+      <p><a class="cta" href="${mapHref}">${escapeHtml(T.mapCta(place))}</a></p>
+${sides.length ? `      <h2>${escapeHtml(T.sideHeading)}</h2>\n${sides.map((s) => s.html).join('\n')}\n` : ''}      <h2>${escapeHtml(T.faqHeading)}</h2>
+${faqHtml}
+${muniIndex}
+${buildCiteSection(lang, T.title(heading, CITE_YEAR), canonical)}`;
+
+  const itemList = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: heading,
+    numberOfItems: ranked.length,
+    itemListElement: ranked.map((f, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: nameOf(f),
+      url: `${ORIGIN}${AREA_PREFIX[lang]}/${toSlug(f.properties.pno, f.properties.nimi)}/`,
+    })),
+  };
+  const crumbList = national
+    ? [
+        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: T.crumb },
+      ]
+    : [
+        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: T.crumb, item: bestUrl(null, lang) },
+        { '@type': 'ListItem', position: 3, name: place },
+      ];
+  const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbList };
+  const faq = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((x) => ({ '@type': 'Question', name: x.q, acceptedAnswer: { '@type': 'Answer', text: x.a } })),
+  };
+  const jsonLd = [itemList, breadcrumb, faq]
+    .map((o) => `    <script type="application/ld+json">${safeJson(o)}</script>`)
+    .join('\n');
+
+  return htmlPage({
+    lang,
+    title: T.title(heading, CITE_YEAR),
+    description: T.desc(place, topNames, fmtNum(rankableCount, lang)),
+    canonical,
+    alternates,
+    jsonLd,
+    body,
+    expectFaq: true,
+  });
+}
+
+/** Link to a municipality's "parhaat asuinalueet" page, for hubs (empty when it has none). */
+function buildBestLink(muniName, lang) {
+  const s = bestScopeByName.get(muniName);
+  if (!s) return '';
+  return `      <p><a href="${bestPath(s.slug, lang)}">${escapeHtml(BEST_TEXT[lang].best(s.name))} →</a></p>`;
+}
+
+/** Region hub → its municipalities' "parhaat asuinalueet" pages. */
+function buildRegionBestNav(region, lang) {
+  const list = bestScopes.filter((s) => s.regionId === region.id);
+  if (list.length === 0) return '';
+  if (list.length === 1) return buildBestLink(list[0].name, lang);
+  const links = list.map((s) => `<a href="${bestPath(s.slug, lang)}">${escapeHtml(s.name)}</a>`).join(' · ');
+  return `      <h2>${escapeHtml(BEST_TEXT[lang].muniHeading)}</h2>\n      <p>${links}</p>`;
+}
+
 // --- Directory page ---
 function buildDirectory(lang) {
   const T = TEXT[lang];
@@ -1002,6 +1337,7 @@ ${rows}
         </tbody>
       </table>
 ${buildSeDirectorySection(seRegions, lang, seHubHelpers())}
+      <p><a href="${bestPath(null, lang)}">${escapeHtml(BEST_TEXT[lang].best(null))} →</a></p>
 ${buildDirectoryRankingNav(lang)}
 ${buildCiteSection(lang, T.dirTitle, alternates[lang])}`;
 
@@ -1093,6 +1429,7 @@ ${rows}
         </tbody>
       </table>
 ${buildMunicipalitiesNav(region, lang)}
+${buildRegionBestNav(region, lang)}
 ${buildBestAreasNav({ kind: 'region', id: region.id, rankings: region.rankings }, lang)}
 ${buildCompareNav(region, lang)}
 ${buildPlanningNav(region, lang)}
@@ -1225,6 +1562,7 @@ function buildMunicipalityHub(muni, lang) {
 ${rows}
         </tbody>
       </table>
+${buildBestLink(muni.name, lang)}
 ${buildBestAreasNav({ kind: 'muni', slug: muni.slug, rankings: muni.rankings }, lang)}
 ${buildCompareNav(muni, lang)}
 ${buildMuniPlanningNav(muni, lang)}
@@ -1330,6 +1668,7 @@ function buildLanding(lang) {
         ${hubLinks}
       </ul>
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(L.directoryLink)} →</a></p>
+      <p><a href="${bestPath(null, lang)}">${escapeHtml(BEST_TEXT[lang].best(null))} →</a></p>
       <p class="muted">${escapeHtml(L.sourcesNote)}</p>
 ${buildCiteSection(lang, L.title, alternates[lang])}`;
 
@@ -1636,21 +1975,57 @@ function computeRegionComparePairs(region) {
 // rank meaningfully) — attached to each region so its hub can cross-link them.
 // Also precompute each region's compare pairs so the hub can link them.
 for (const region of regions) {
-  region.rankings = RANKING_METRICS.filter(
-    (m) => region.features.filter((f) => isRankable(f, m)).length >= MIN_REGION_RANKED,
-  );
+  region.rankings = RANKING_METRICS.filter((m) => hasRankableSpread(region.features, m, MIN_REGION_RANKED));
   region.comparePairs = computeRegionComparePairs(region);
 }
 // CF-12 (muni scope): same coverage gate per municipality, so each /kunta/{slug}/parhaat/
 // page is backed by ≥MIN_MUNI_RANKED real values and the muni hub can cross-link them.
 // Must run before the municipality hubs are written (buildBestAreasNav reads muni.rankings).
 for (const muni of municipalities) {
-  muni.rankings = RANKING_METRICS.filter(
-    (m) => muni.features.filter((f) => isRankable(f, m)).length >= MIN_MUNI_RANKED,
-  );
-  // CF-1: same bounded compare set as regions, so the muni hub can link its /vertaa/ pages
-  // (a subset of the region's — every link resolves to a page that is actually generated).
-  muni.comparePairs = computeRegionComparePairs(muni);
+  muni.rankings = RANKING_METRICS.filter((m) => hasRankableSpread(muni.features, m, MIN_MUNI_RANKED));
+  // CF-1: bounded compare set for the muni hub's /vertaa/ links.
+  // Only pairs the region also generated: /vertaa/ pages are written from the REGION's
+  // pairs, and a municipality's own top-N differs from its region's, so an unfiltered list
+  // linked thousands of pages that were never built.
+  const regionPairs = new Set((regions.find((r) => r.id === muni.regionId)?.comparePairs || []).map(([a, b]) => `${a}|${b}`));
+  muni.comparePairs = computeRegionComparePairs(muni).filter(([a, b]) => regionPairs.has(`${a}|${b}`));
+}
+
+// "Parhaat asuinalueet" scopes: every Finnish municipality with enough rankable areas whose
+// quality index actually varies. Computed before any hub is written, so hub links resolve.
+const muniHubByName = new Map(municipalities.map((m) => [m.name, m]));
+const regionById = new Map(regions.map((r) => [r.id, r]));
+const bestScopes = [...byMunicipality.values()]
+  .filter((m) => hasRankableSpread(m.features, QI_METRIC, BEST_MIN_RANKED))
+  .map((m) => {
+    const hub = muniHubByName.get(m.name);
+    const base = slugify(m.name);
+    const code = String(m.features[0].properties.kunta || '');
+    const slug = hub ? hub.slug : (muniSlugCounts.get(base) > 1 && code ? `${base}-${code}` : base);
+    const region = regionById.get(m.regionId);
+    const soleMuni = (muniCountByRegion.get(m.regionId) || 0) === 1;
+    let totalPop = 0;
+    for (const f of m.features) if (typeof f.properties.he_vakiy === 'number') totalPop += f.properties.he_vakiy;
+    return {
+      name: m.name,
+      slug,
+      regionId: m.regionId,
+      features: m.features,
+      totalPop,
+      hubPath: (lang) => (hub ? muniPath(hub.slug, lang) : `${CITY_PREFIX[lang]}/${m.regionId}/`),
+      // The full per-metric list, only where that page is actually generated.
+      rankPathFor: (metric, lang) => {
+        if (hub && hub.rankings.includes(metric)) return rankPath(metric.slug, { kind: 'muni', slug: hub.slug }, lang);
+        if (!hub && soleMuni && region?.rankings.includes(metric)) return rankPath(metric.slug, { kind: 'region', id: m.regionId }, lang);
+        return null;
+      },
+    };
+  })
+  .sort((a, b) => b.totalPop - a.totalPop || a.name.localeCompare(b.name, 'fi'));
+const bestScopeByName = new Map(bestScopes.map((s) => [s.name, s]));
+{
+  const slugs = new Set(bestScopes.map((s) => s.slug));
+  if (slugs.size !== bestScopes.length) throw new Error('prerender-hubs: duplicate parhaat-asuinalueet slug');
 }
 
 for (const lang of LANGS) {
@@ -1753,6 +2128,31 @@ for (const muni of municipalities) {
 }
 
 writeFileSync(join(DIST, 'ranking-pages.json'), JSON.stringify(rankingManifest));
+
+// "Parhaat asuinalueet": Finland + one page per municipality (×3 languages).
+const bestManifest = [];
+{
+  const ranked = rankFeatures(RANKABLE, QI_METRIC, BEST_NATIONAL_TOP_N);
+  const count = RANKABLE.filter((f) => isRankable(f, QI_METRIC)).length;
+  for (const lang of LANGS) {
+    const dir = join(DIST, ...bestPath(null, lang).split('/').filter(Boolean));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildBestPage(lang, null, RANKABLE, ranked, count));
+  }
+  bestManifest.push(bestAlternates(null));
+}
+for (const scope of bestScopes) {
+  const ranked = rankFeatures(scope.features, QI_METRIC, BEST_TOP_N);
+  const count = scope.features.filter((f) => isRankable(f, QI_METRIC)).length;
+  for (const lang of LANGS) {
+    const dir = join(DIST, ...bestPath(scope.slug, lang).split('/').filter(Boolean));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), buildBestPage(lang, scope, scope.features, ranked, count));
+  }
+  bestManifest.push(bestAlternates(scope.slug));
+}
+writeFileSync(join(DIST, 'parhaat-asuinalueet-pages.json'), JSON.stringify(bestManifest));
+console.log(`Prerendered ${bestManifest.length} "parhaat asuinalueet" page sets (${bestManifest.length * 3} HTML files; manifest → dist/parhaat-asuinalueet-pages.json).`);
 console.log(`Prerendered ${rankingManifest.length} ranking page sets (${rankingManifest.length * 3} HTML files; ${muniRankingSets} municipality-scoped; manifest → dist/ranking-pages.json).`);
 
 // ---------------------------------------------------------------------------

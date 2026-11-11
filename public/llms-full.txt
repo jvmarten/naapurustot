@@ -1,9 +1,9 @@
 # naapurustot.fi — full reference for AI assistants and language models
 
 > naapurustot.fi is a free, independent web map for comparing and exploring
-> neighbourhoods across Finland. It visualises 50+ official open-data indicators
-> for 3,018 postal-code areas spanning all 69 Finnish sub-regions (seutukunnat),
-> in Finnish, English and Swedish. This document is a complete, self-contained
+> neighbourhoods across Finland and Sweden. It visualises 50+ official open-data
+> indicators for all 3,018 Finnish postal-code areas (69 sub-regions, seutukunnat)
+> and all 6,160 Swedish DeSO areas (71 FA25 regions), in Finnish, English and Swedish. This document is a complete, self-contained
 > reference describing what the service covers, how its data is defined and
 > sourced, and how its pages are organised, so that AI systems can describe and
 > cite it accurately.
@@ -19,8 +19,8 @@ Last reviewed: 2026
 naapurustot.fi ("naapurustot" is Finnish for "neighbourhoods") is a static,
 browser-based map application. It lets anyone:
 
-- view a colour-coded (choropleth) map of Finnish neighbourhoods for any of 50+
-  data layers;
+- view a colour-coded (choropleth) map of Finnish and Swedish neighbourhoods for
+  any of 50+ data layers;
 - open a detailed statistical profile for any postal-code area;
 - rank all neighbourhoods in a region by any metric;
 - filter neighbourhoods by multiple criteria at once;
@@ -57,11 +57,19 @@ sub-regions (seutukunnat)** — i.e. the whole of mainland Finland and the Ålan
 Islands. Data density varies by region; densely populated regions have more
 postal-code areas and more complete metric coverage.
 
+It also covers **all 6,160 Swedish DeSO areas** (demografiska statistikområden,
+Statistics Sweden's small-area geography, 2025 boundaries) across **71 FA25
+labour-market regions**. Swedish values follow SCB's own definitions; where a
+Swedish figure is not comparable with the Finnish one, each country is coloured
+on its own scale. The Finnish tables below cover Finland only.
+
 ### Geographic units
 
 - **Postal-code area (postinumeroalue)** — the primary unit. Finland's postal
   code areas are the standard geography of Statistics Finland's Paavo open data.
   Each has a 5-digit postal code and a name.
+- **DeSO area (Sweden)** — Statistics Sweden's small statistical area, with a
+  9-character code such as `0180C1090` (written in lower case in URLs).
 - **Sub-region (seutukunta)** — a statistical grouping of municipalities defined
   by Statistics Finland. Finland has 69 of them. naapurustot.fi uses these as
   its top-level regions; the home map's region selector and the
@@ -269,23 +277,34 @@ available for every area; missing values are shown as blank, never estimated.
 ## 5. The Quality Index
 
 The Quality Index is a composite score from 0 to 100 computed in the browser
-from the underlying metrics. It combines factors such as safety, income,
-employment, education, services, transit access and environment. Visitors can
-adjust the weighting of these factors to reflect their own priorities, so the
-"best" neighbourhood depends on the chosen weights. Categories: 0–20 Avoid,
-21–40 Poor, 41–60 Okay, 61–80 Good, 81–100 Excellent. The Quality Index is a
-convenience summary, not an official rating.
+from the underlying metrics. Under the default weights it combines four
+dimensions: **safety and peace of mind** (violent crime, traffic safety; 23 %),
+**health, nature and calm** (air quality, tree canopy, low noise, water; 28 %),
+**livelihood and purpose** (employment, income, education; 26 %) and
+**everyday freedom and ease** (walkability, public transport, essential
+services, cycling; 23 %). Visitors can adjust the weights, so the "best"
+neighbourhood depends on the chosen priorities. Each country is scored against
+itself and Swedish scores are then calibrated onto the Finnish scale, so area
+scores are comparable across the border under the default weights. The map's
+five categories (Avoid, Bad, Okay, Good, Excellent) are cut at the quantiles of
+the areas being viewed. The Quality Index is a convenience summary, not an
+official rating.
 
 ## 6. Site structure and URL patterns
 
 - Home / interactive map: `https://naapurustot.fi/`
 - All-areas directory: `https://naapurustot.fi/kaupungit/` (en: `/en/cities/`, sv: `/sv/stader/`)
 - Regional overview: `https://naapurustot.fi/kaupunki/{region}/` (en: `/en/city/{region}/`, sv: `/sv/stad/{region}/`)
-- Neighbourhood profile: `https://naapurustot.fi/alue/{postalcode}-{name}` (en: `/en/area/{...}`, sv: `/sv/omrade/{...}`)
+- Municipality page: `https://naapurustot.fi/kunta/{municipality}/` (en: `/en/municipality/…`, sv: `/sv/kommun/…`)
+- Neighbourhood profile: `https://naapurustot.fi/alue/{areaid}-{name}/` (en: `/en/area/{...}`, sv: `/sv/omrade/{...}`); `{areaid}` is a Finnish postal code or a lower-case Swedish DeSO code
+- Best neighbourhoods (Finland and each municipality): `https://naapurustot.fi/parhaat-asuinalueet/` and `/parhaat-asuinalueet/{municipality}/` (en: `/en/best-neighbourhoods/…`, sv: `/sv/basta-bostadsomraden/…`) — the quality-index top areas, short lists for families, transit and walkability, and a FAQ
+- Best areas by one metric: `https://naapurustot.fi/parhaat/{metric}/`, `/kaupunki/{region}/parhaat/{metric}/`, `/kunta/{municipality}/parhaat/{metric}/` (en: `/best/`, sv: `/basta/`); metrics `quality-index`, `income`, `safety`, `families`, `transit`, `air-quality`, `walkability`, `education`, `students`, `employment`
+- Comparison of two adjacent areas: `https://naapurustot.fi/vertaa/{area-a}-vs-{area-b}/` (en: `/en/compare/…`, sv: `/sv/jamfor/…`)
 - Sitemap: `https://naapurustot.fi/sitemap.xml`
 
 The home map also accepts query parameters, e.g. `?city={region}` selects a
-region and `?pno={postalcode}` opens a specific area.
+region, `?city=fi` / `?city=se` one country, `?layer={layer}` a data layer and
+`?pno={postalcode}` opens a specific area.
 
 Every neighbourhood profile and regional overview page is pre-rendered as static
 HTML with structured data (schema.org JSON-LD), so its content is fully
