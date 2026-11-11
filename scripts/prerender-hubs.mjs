@@ -34,7 +34,7 @@ import { assertHeadIntegrity } from './prerender-lib.mjs';
 // imports → Node's TypeScript stripping (22.18+/24) loads them without a build.
 import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
 import { computeChangeMetrics, computeQuickWinMetrics } from '../src/utils/metrics.ts';
-import { decodeColumnar } from './lib/columnar.mjs';
+import { loadCountryRanges } from './lib/countryRanges.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -69,31 +69,15 @@ if (existsSync(CARD_DIR)) {
 const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
 // CF-12: derive computed metrics in place (same order as scripts/prerender.mjs)
 // so quality_index and the quick-win props are present on every feature.
-computeQualityIndices(geojson.features);
+// Score against each country's national ranges, calibrated onto Finland's scale, exactly as
+// the app's dataLoader does (getCountryRanges) — so a ranking page and the map one click
+// away name the same areas. Scoring the GeoJSON against itself (no ranges) put Punavuori
+// on top of Helsinki's page while the map put Paloheinä there.
+const COUNTRY_RANGES = loadCountryRanges(ROOT);
+computeQualityIndices(geojson.features, undefined, COUNTRY_RANGES);
 computeChangeMetrics(geojson.features);
 computeQuickWinMetrics(geojson.features);
 
-// The quality index THE MAP shows. The calls above score the GeoJSON against itself, but
-// the app's default view scores every area against its country's national ranges
-// (national_ranges.json, winsorized) and calibrates Sweden onto Finland's scale
-// (getCountryRanges). A ranking page saying "Punavuori 66" while the map one click away
-// shows Paloheinä on top would contradict itself, so the hub pages use the map's score:
-// computed here exactly as the runtime does, over the same region_properties.json rows.
-const MAP_QUALITY = (() => {
-  const rows = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')));
-  const rf = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'national_ranges.json'), 'utf-8'));
-  const toMap = (raw) => new Map(Object.entries(raw ?? {}).map(([k, r]) => [k, { min: r.min, max: r.max, avg: r.avg }]));
-  const ranges = { fi: toMap(rf.ranges), calibration: rf.calibration };
-  for (const [c, v] of Object.entries(rf.countries ?? {})) ranges[c] = toMap(v.ranges);
-  const feats = rows.map((properties) => ({ type: 'Feature', properties: { ...properties }, geometry: null }));
-  computeQualityIndices(feats, undefined, ranges);
-  return new Map(feats.map((f) => [String(f.properties.pno), f.properties.quality_index ?? null]));
-})();
-/** Overwrite each feature's quality_index with the map's (null where the map has none). */
-function applyMapQuality(features) {
-  for (const f of features) f.properties.quality_index = MAP_QUALITY.get(String(f.properties.pno)) ?? null;
-}
-applyMapQuality(geojson.features);
 // Swedish names of Finnish municipalities (Helsinki → Helsingfors), from Statistics Finland's
 // municipality classification (scripts/fetch_fi_municipality_names.mjs), keyed by kunta code.
 // Swedish-language pages name a municipality by its Swedish name; URLs and lookups keep the
@@ -649,7 +633,7 @@ const regions = [...byRegion.entries()]
 
 // Sweden's FA25 regions get hub pages too (prerender-hubs-se.mjs): region hubs only.
 const seRegions = loadSeRegions(ROOT);
-for (const r of seRegions) applyMapQuality(r.features);
+computeQualityIndices(seRegions.flatMap((r) => r.features), undefined, COUNTRY_RANGES);
 
 const TOTAL_AREAS = regions.reduce((s, r) => s + r.count, 0);
 const TOTAL_POP = regions.reduce((s, r) => s + r.totalPop, 0);
