@@ -442,7 +442,7 @@ CollapsibleSection.displayName = 'CollapsibleSection';
 
 // The map layer the user had chosen when they opened the area, at the top of the
 // panel: its value in the map's own colour, the same "vs. avg" the hover tooltip
-// shows, and (desktop) a jump to the layer's row among the detailed stats.
+// shows, and a jump to the layer's row among the detailed stats.
 const ActiveLayerCard: React.FC<{
   activeLayer: LayerId;
   props: NeighborhoodProperties;
@@ -485,7 +485,7 @@ const ActiveLayerCard: React.FC<{
           <button
             type="button"
             onClick={onJump}
-            className="hidden md:inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+            className="inline-flex shrink-0 items-center gap-0.5 min-h-[44px] md:min-h-0 -my-3 md:my-0 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
           >
             {t('panel.jump_to_layer')}
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
@@ -1212,31 +1212,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // across neighborhood changes, so this fires on mount/unmount only).
   const desktopPanelRef = useRef<HTMLDivElement>(null);
 
-  // "Show in details": open the section holding the active layer's row (each
-  // CollapsibleSection probes itself on the `reveal` bump), then scroll to it. Not
-  // every layer has a row of its own: those go to the distribution chart, and a layer
-  // with neither loses the button.
-  const [reveal, setReveal] = useState(0);
-  const [jumpMissing, setJumpMissing] = useState<LayerId | null>(null);
-  const activeProperty = activeLayer ? getLayerById(activeLayer).property : null;
-  const activeMetricCtx = useMemo(() => ({ property: activeProperty, reveal }), [activeProperty, reveal]);
-  const showActiveCard = !!activeLayer && activeLayer !== 'quality_index' && !d._noData;
-  const jumpToActiveLayer = useCallback(() => {
-    const layerAtClick = activeLayer ?? null;
-    setReveal((r) => r + 1);
-    // Two frames: the probe render and the open render have both committed by then.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      // A layer with no stat row of its own still has its distribution chart.
-      const panel = desktopPanelRef.current;
-      const row = panel?.querySelector<HTMLElement>('[data-active-metric]')
-        ?? panel?.querySelector<HTMLElement>('[data-active-distribution]');
-      if (!row) { setJumpMissing(layerAtClick); return; }
-      row.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
-      row.classList.remove('animate-fade-in');
-      void row.offsetWidth;
-      row.classList.add('animate-fade-in');
-    }));
-  }, [activeLayer, reducedMotion]);
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
     // offsetParent is null for the display:none container at the current breakpoint.
@@ -1291,6 +1266,71 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     setActiveSection(next);
     tablistRef.current?.querySelector<HTMLButtonElement>(`#section-tab-${next}`)?.focus();
   }, [activeSection, setActiveSection, MOBILE_SECTIONS.length]);
+
+  // PO-3: Array of mobile section content fragments.
+  // Only mount sections that have been visited (active or previously swiped to).
+  // This defers rendering ~60+ DOM elements for hidden tabs until the user actually
+  // swipes to them, cutting panel open time significantly on mobile.
+  const [visitedSections, setVisitedSections] = useState<Set<number>>(() => new Set([0]));
+  // biome-ignore lint: activeSection tracked via effect
+  React.useEffect(() => {
+    setVisitedSections((prev) => {
+      if (prev.has(activeSection)) return prev;
+      const next = new Set(prev);
+      next.add(activeSection);
+      return next;
+    });
+  }, [activeSection]);
+  // "Show in details": open the section holding the active layer's row (each
+  // CollapsibleSection probes itself on the `reveal` bump), then scroll to it. Not
+  // every layer has a row of its own: those go to the distribution chart, and a layer
+  // with neither loses the button. On the phone sheet the row sits in another tab,
+  // which may not be mounted yet: mount the stats tab first (a section mounted in the
+  // same commit as the bump would take the new `reveal` as already handled), then
+  // reveal, then switch to whichever tab holds the row and scroll inside it.
+  const [reveal, setReveal] = useState(0);
+  const [jumpMissing, setJumpMissing] = useState<LayerId | null>(null);
+  const activeProperty = activeLayer ? getLayerById(activeLayer).property : null;
+  const activeMetricCtx = useMemo(() => ({ property: activeProperty, reveal }), [activeProperty, reveal]);
+  const showActiveCard = !!activeLayer && activeLayer !== 'quality_index' && !d._noData;
+  const jumpToActiveLayer = useCallback(() => {
+    const layerAtClick = activeLayer ?? null;
+    const behavior: ScrollBehavior = reducedMotion ? 'auto' : 'smooth';
+    const flash = (el: HTMLElement) => {
+      el.classList.remove('animate-fade-in');
+      void el.offsetWidth;
+      el.classList.add('animate-fade-in');
+    };
+    const desktop = desktopPanelRef.current;
+    const onDesktop = !!desktop && desktop.offsetParent !== null;
+    if (!onDesktop) setVisitedSections((prev) => (prev.has(1) ? prev : new Set(prev).add(1)));
+    // One frame for the tab to mount, then two for the probe and open renders.
+    requestAnimationFrame(() => {
+      setReveal((r) => r + 1);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const root = onDesktop ? desktop : sheetRef.current;
+        // A layer with no stat row of its own still has its distribution chart.
+        const row = root?.querySelector<HTMLElement>('[data-active-metric]')
+          ?? root?.querySelector<HTMLElement>('[data-active-distribution]');
+        if (!row) { setJumpMissing(layerAtClick); return; }
+        if (onDesktop) {
+          row.scrollIntoView({ behavior, block: 'center' });
+          flash(row);
+          return;
+        }
+        // Not scrollIntoView: the tabs are a translateX carousel inside an
+        // overflow-hidden track, which scrollIntoView would scroll sideways.
+        const pane = row.closest<HTMLElement>('[role="tabpanel"]');
+        const idx = pane ? Number(pane.id.replace('section-panel-', '')) : NaN;
+        if (!pane || !Number.isFinite(idx)) return;
+        setActiveSection(idx);
+        const top = row.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+        pane.scrollTo({ top: Math.max(0, top - pane.clientHeight / 2 + row.offsetHeight / 2), behavior });
+        flash(row);
+      }));
+    });
+  }, [activeLayer, reducedMotion, setActiveSection]);
+
 
   // The header's icon buttons: 44 px touch targets on mobile, compact on desktop.
   const iconBtn = `p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center flex-shrink-0
@@ -2353,20 +2393,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </>
   );
 
-  // PO-3: Array of mobile section content fragments.
-  // Only mount sections that have been visited (active or previously swiped to).
-  // This defers rendering ~60+ DOM elements for hidden tabs until the user actually
-  // swipes to them, cutting panel open time significantly on mobile.
-  const [visitedSections, setVisitedSections] = useState<Set<number>>(() => new Set([0]));
-  // biome-ignore lint: activeSection tracked via effect
-  React.useEffect(() => {
-    setVisitedSections((prev) => {
-      if (prev.has(activeSection)) return prev;
-      const next = new Set(prev);
-      next.add(activeSection);
-      return next;
-    });
-  }, [activeSection]);
   const mobileSectionDefs = [sectionOverview, sectionStats, sectionTrends, sectionSimilar];
   const mobileSections = mobileSectionDefs.map((section, i) =>
     visitedSections.has(i) ? section : null
