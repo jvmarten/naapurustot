@@ -143,6 +143,15 @@ PROPERTY_PRICE_FILE = Path(__file__).parent / "property_prices.json"
 # historical_trends.json. Re-run that script to refresh, then `npm run build:data`.
 PROPERTY_PRICE_HISTORY_FILE = Path(__file__).parent / "property_price_history.json"
 CRIME_INDEX_HISTORY_FILE = Path(__file__).parent / "crime_index_history.json"
+# €/m² by dwelling type + the year's sales count (ashi 13mu), built by
+# fetch_price_by_type.py: {"year": Y, "areas": {pno: {prop: int}}}.
+PROPERTY_PRICE_BY_TYPE_FILE = Path(__file__).parent / "property_price_by_type.json"
+# Municipal tax rate 2026 and net migration ‰/yr, distributed to postal codes (is_proxy),
+# built by fetch_municipal_tax_migration.py: {pno: value}.
+MUNICIPAL_TAX_RATE_FILE = Path(__file__).parent / "municipal_tax_rate.json"
+NET_MIGRATION_RATE_FILE = Path(__file__).parent / "net_migration_rate.json"
+PRICE_BY_TYPE_PROPS = ("price_sqm_studio", "price_sqm_two_room", "price_sqm_three_room",
+                       "price_sqm_rowhouse", "property_sales_count")
 
 # HSL Digitransit API v1 for transit accessibility
 DIGITRANSIT_URL = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
@@ -2872,6 +2881,16 @@ def main():
 
     # --- CF-7: property-price & crime time-series (refreshes property snapshot) ---
     gdf = join_price_crime_history(gdf)
+    # €/m² by dwelling type and sales count. Written as ints, as the file holds them;
+    # absent where Statistics Finland suppresses the cell.
+    by_type = (json.loads(PROPERTY_PRICE_BY_TYPE_FILE.read_text(encoding="utf-8"))["areas"]
+               if PROPERTY_PRICE_BY_TYPE_FILE.exists() else {})
+    for prop in PRICE_BY_TYPE_PROPS:
+        gdf[prop] = [by_type.get(p, {}).get(prop) for p in gdf["pno"]]
+    for prop, path in (("municipal_tax_rate", MUNICIPAL_TAX_RATE_FILE),
+                       ("net_migration_rate", NET_MIGRATION_RATE_FILE)):
+        vals = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        gdf[prop] = [vals.get(p) for p in gdf["pno"]]
 
     # --- Backfill nulls from previous output ---
     # If any data source failed this run, preserve the values from the last

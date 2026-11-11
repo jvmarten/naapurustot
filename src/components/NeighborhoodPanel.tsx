@@ -138,6 +138,13 @@ const ActiveMetricContext = React.createContext<{ property: string | null; revea
  *  (AreaSummaryPanel's "vs. metro" column) and on the share card. */
 const SHOW_STAT_DIFFS: boolean = false;
 
+const PRICE_TYPE_ROWS = [
+  ['price_sqm_studio', 'panel.price_sqm_studio'],
+  ['price_sqm_two_room', 'panel.price_sqm_two_room'],
+  ['price_sqm_three_room', 'panel.price_sqm_three_room'],
+  ['price_sqm_rowhouse', 'panel.price_sqm_rowhouse'],
+] as const;
+
 const StatRow: React.FC<{
   label: string;
   value: string;
@@ -1912,6 +1919,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             property="price_to_rent_ratio"
             neighbourEstimate={priceToRentFallback != null}
           />
+          {d.municipal_tax_rate != null && (
+            <StatRow label={t('layer.municipal_tax')} value={`${Number(d.municipal_tax_rate).toFixed(2)} %`} property="municipal_tax_rate" />
+          )}
           {/* PO-6: rent source (StatFin asvu 13eb) is retired — flag the frozen snapshot */}
           <DiscontinuedCaveat property="rental_price_sqm" />
           <StatRow
@@ -1971,6 +1981,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diffClass={diffColor(d.avg_household_size, avg.avg_household_size)}
             property="avg_household_size"
           />
+          {d.net_migration_rate != null && (
+            <StatRow label={t('layer.net_migration')} value={`${Number(d.net_migration_rate) > 0 ? '+' : ''}${Number(d.net_migration_rate).toFixed(1)} ‰`} property="net_migration_rate" />
+          )}
         </div>
       </CollapsibleSection>
 
@@ -1985,6 +1998,10 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             property="property_price_sqm"
             neighbourEstimate={propertyPriceFallback != null}
           />
+          {/* €/m² by dwelling type (ashi 13mu); a type StatFin suppresses (<6 sales) is left out. */}
+          {PRICE_TYPE_ROWS.map(([prop, labelKey]) => d[prop] != null && (
+            <StatRow key={prop} label={t(labelKey)} value={formatEuroSqm(d[prop])} property={prop} />
+          ))}
           <StatRow
             label={t('panel.property_price_change')}
             value={d.property_price_change_pct != null ? `${Number(d.property_price_change_pct) >= 0 ? '+' : ''}${Number(d.property_price_change_pct).toFixed(1)} %` : '—'}
@@ -1992,6 +2009,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diffClass={diffColor(d.property_price_change_pct, avg.property_price_change_pct)}
             property="property_price_change_pct"
           />
+          {d.property_sales_count != null && (
+            <StatRow label={t('panel.property_sales_count')} value={formatNumber(d.property_sales_count)} property="property_sales_count" />
+          )}
           <StatRow
             label={t('panel.transit_access')}
             value={formatFineDensity(d.transit_stop_density)}

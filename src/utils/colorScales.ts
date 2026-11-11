@@ -44,6 +44,8 @@ export type LayerId =
   | 'income_change'
   | 'population_change'
   | 'population_projection'
+  | 'net_migration'
+  | 'municipal_tax'
   | 'unemployment_change'
   | 'crime_index_change'
   // Crime sub-groups. Siblings under the total, so they never double-count it.
@@ -782,7 +784,32 @@ export const LAYERS: LayerConfig[] = [
     stops: [-15, -10, -5, 0, 5, 10, 15, 25],
     format: pct,
     divergingCenter: 0,
+  },  // Total net migration per 1,000 residents a year, 2023–2025 (StatFin muutl 11ae,
+  // municipal — is_proxy). Diverging like population_change: inflow good, outflow bad.
+  {
+    id: 'net_migration',
+    labelKey: 'layer.net_migration',
+    property: 'net_migration_rate',
+    unit: '‰',
+    colors: ['#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac'],
+    stops: [-15, -10, -5, 0, 5, 10, 15, 20],
+    format: (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} ‰`,
+    divergingCenter: 0,
   },
+  // 2026 municipal income tax rate (Verohallinto, municipal — is_proxy). Åland's
+  // 17–19.7 % sit above the ramp: the 2023 wellbeing-services reform cut every
+  // mainland rate by 12.64 points and did not apply there.
+  {
+    id: 'municipal_tax',
+    labelKey: 'layer.municipal_tax',
+    property: 'municipal_tax_rate',
+    unit: '%',
+    colors: ['#f7fcf5', '#d5efcf', '#a1d99b', '#74c476', '#f9d057', '#fd8d3c', '#e5533d', '#b00026'],
+    stops: [5, 7, 8, 8.5, 9, 9.5, 10, 11],
+    format: (v) => `${v.toFixed(2)} %`,
+    higherIsBetter: false,
+  },
+
   {
     id: 'unemployment_change',
     labelKey: 'layer.unemployment_change',
