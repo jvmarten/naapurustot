@@ -87,6 +87,7 @@ for (const p of props) {
   for (const key of Object.keys(p)) {
     if (ID_FIELDS.has(key)) continue;
     if (key.startsWith('_')) continue;
+    if (key.endsWith('_est')) continue; // neighbour estimates (spatialEstimate.ts) are not data
     const v = p[key];
     if (typeof v !== 'number' || !isFinite(v)) continue;
     if (key === 'hr_mtu' && v <= 0) continue;

@@ -22,6 +22,8 @@ import { resolve } from 'node:path';
 import { buildAdjacencyFromRegions } from './lib/adjacency.mjs';
 import { computeDataUpdateEvents, mergeDataUpdates } from './lib/data-updates.mjs';
 import { encodeColumnar } from './lib/columnar.mjs';
+// Node's TypeScript stripping loads it (same path build_region_aggregates.mjs uses).
+import { addNeighbourEstimates, isEstimateKey } from '../src/utils/spatialEstimate.ts';
 
 const rootDir = resolve(import.meta.dirname, '..');
 const geojsonPath = resolve(rootDir, 'public', 'data', 'metro_neighborhoods.geojson');
@@ -49,6 +51,15 @@ const seFeatures = seGeojsonRaw ? JSON.parse(seGeojsonRaw).features : [];
 const features = [...fiFeatures, ...seFeatures];
 const countryOfRegion = (regionId) => (regionId.startsWith('se_') ? 'se' : 'fi');
 console.log(`  ${features.length} features total (${fiFeatures.length} Finland, ${seFeatures.length} Sweden)`);
+
+// Neighbour estimates (src/utils/spatialEstimate.ts): areas a price/rent layer has no
+// measured value for get `<property>_est` from the nearest measured areas. Written
+// beside the measured key, never into it, so nothing that aggregates or ranks the
+// measured data can see them. Deterministic: inputs are the committed GeoJSON only.
+{
+  const counts = addNeighbourEstimates(features.map((f) => f.properties ?? (f.properties = {})));
+  console.log(`  neighbour estimates: ${Object.entries(counts).map(([k, n]) => `${k} ${n}`).join(', ')}`);
+}
 
 // CF-4: municipality name + WGS84 centroid (lat/lon) are baked into the GeoJSON
 // properties by the pipeline (prepare_data.py / scripts on refresh), so they flow
@@ -262,6 +273,7 @@ for (const [regionId, regionFeatures] of byRegion) {
     for (const key of Object.keys(props)) {
       if (EXCLUDED_PROPS.has(key)) continue;
       if (key.startsWith('_')) continue;
+      if (isEstimateKey(key)) continue; // derived, not a metric
       if (isMeaningful(props[key])) {
         propCounts.set(key, (propCounts.get(key) || 0) + 1);
       }

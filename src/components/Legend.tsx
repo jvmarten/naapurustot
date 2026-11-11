@@ -21,9 +21,9 @@ interface LegendProps {
   gridError?: boolean;
   /** MO2: on mobile, suppress the legend when a full-width panel covers it (desktop is md:absolute and unaffected). */
   hidden?: boolean;
-  /** T1: true when the map is tinting no-data price areas with the seutukunta average
-   *  (hatched) — show a note explaining the hatched "sub-region estimate" fills. */
-  subregionEstimate?: boolean;
+  /** True when the map paints no-data areas from neighbour estimates (hatched) — show
+   *  a note explaining the hatched estimate fills. */
+  neighbourEstimate?: boolean;
   /** PO-4: true when a percentile filter / wizard highlight is active over a grid
    *  layer — the filter can't apply to (non-pno-keyed) grid cells, so say so. */
   gridFilterInactive?: boolean;
@@ -41,7 +41,7 @@ interface LegendProps {
 }
 
 // colorblind prop triggers re-render when mode changes (getLayerById reads global state)
-export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, subregionEstimate, gridFilterInactive, gridActive, areaHint, onDismissAreaHint, country }) => {
+export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: _colorblind, layerConfig, lang: _lang, gridLoading, gridError, hidden, neighbourEstimate, gridFilterInactive, gridActive, areaHint, onDismissAreaHint, country }) => {
   useI18nVersion();
   const layer = layerConfig ?? getLayerById(layerId);
 
@@ -246,11 +246,11 @@ export const Legend: React.FC<LegendProps> = React.memo(({ layerId, colorblind: 
             {t('coverage.caption').replace('{pct}', coverageLabel)}
           </div>
         )}
-        {/* T1: explain the hatched fills that carry the seutukunta price estimate. */}
-        {subregionEstimate && (
+        {/* Explain the hatched fills that carry a neighbour estimate (spatialEstimate.ts). */}
+        {neighbourEstimate && (
           <div className="mt-2 flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400 max-w-[170px] leading-snug">
             <span aria-hidden="true">▦</span>
-            <span>{t('legend.subregion_estimate')}</span>
+            <span>{t('legend.neighbour_estimate')}</span>
           </div>
         )}
       </div>

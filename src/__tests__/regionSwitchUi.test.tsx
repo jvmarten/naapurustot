@@ -450,19 +450,22 @@ describe('TooltipOverlay per-region averages', () => {
     expect(comparison()).toBeNull();
   });
 
-  it('suppresses the comparison when showing the price fallback estimate', () => {
-    setTooltipData(hover('lahti', null));
-    render(
-      <TooltipOverlay
-        hidden={false}
-        effectiveLayer={layer}
-        metroAverage={METRO}
-        priceFallbackValue={50000}
-        regionAverages={REGION_AVGS}
-      />,
-    );
-    expect(screen.getByText(t('data.subregion_estimate'))).toBeInTheDocument();
+  it('shows a price layer\'s neighbour estimate, captioned, without a comparison', () => {
+    const price = getLayerById('property_price');
+    setTooltipData({
+      props: { pno: '00100', nimi: 'Testialue', city: 'lahti', property_price_sqm: null, property_price_sqm_est: 2345 } as unknown as NeighborhoodProperties,
+      x: 100,
+      y: 100,
+    });
+    render(<TooltipOverlay hidden={false} effectiveLayer={price} metroAverage={3000} regionAverages={null} />);
+    expect(screen.getByText(t('data.neighbour_estimate'))).toBeInTheDocument();
     expect(comparison()).toBeNull();
+  });
+
+  it('ignores an estimate key on a layer that has no estimates', () => {
+    setTooltipData(hover('lahti', null, { props: { pno: '00100', nimi: 'Testialue', city: 'lahti', [prop]: null, [prop + '_est']: 30000 } as unknown as NeighborhoodProperties }));
+    render(<TooltipOverlay hidden={false} effectiveLayer={layer} metroAverage={METRO} regionAverages={REGION_AVGS} />);
+    expect(screen.queryByText(t('data.neighbour_estimate'))).toBeNull();
   });
 
   it('renders nothing while hidden (an area is selected)', () => {

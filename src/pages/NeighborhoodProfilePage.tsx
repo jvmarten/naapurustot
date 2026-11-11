@@ -4,7 +4,8 @@ import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import { loadNeighborhoodData, loadRegionData } from '../utils/dataLoader';
 import { parseSlug, toSlug } from '../utils/slug';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { computeMetroAverages, getMetricSource } from '../utils/metrics';
+import { getMetricSource } from '../utils/metrics';
+import { estimateFor } from '../utils/spatialEstimate';
 import type { NeighbourhoodPercentiles } from '../utils/percentileRanks';
 import type { RegionId } from '../utils/regions';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
@@ -477,16 +478,6 @@ export const NeighborhoodProfilePage: React.FC = () => {
     );
   }, [state]);
 
-  // T1: seutukunta (sub-region) price averages, used as a display-only fallback when
-  // this area lacks its own housing/rent price. Computed from the region's features
-  // (loaded async for the MiniMap), so the estimate appears after that load — the
-  // static/prerendered HTML and JSON-LD keep showing only real per-area data. Declared
-  // before the early returns so the hook order is stable.
-  const regionPriceAvg = useMemo(
-    () => (state?.regionFeatures && state.regionFeatures.length > 0 ? computeMetroAverages(state.regionFeatures) : null),
-    [state?.regionFeatures],
-  );
-
   // LP-1: full-page spinner only when there is nothing to show yet (hard load of a
   // non-prerendered page). During client-side navigation the previous profile stays
   // visible under a light overlay (below) instead of blanking the whole page.
@@ -546,13 +537,13 @@ export const NeighborhoodProfilePage: React.FC = () => {
   // missing `city` still renders visible, consistent link text (rather than '').
   const cityName = t(`city.${d.city ?? 'helsinki_metro'}`);
 
-  // T1: resolve the two price fallbacks from the seutukunta averages computed above.
-  const regionPrice = (key: string): number | null => {
-    const v = regionPriceAvg?.[key];
-    return typeof v === 'number' && isFinite(v) ? v : null;
-  };
-  const propertyPriceFallback = d.property_price_sqm == null ? regionPrice('property_price_sqm') : null;
-  const rentalPriceFallback = d.rental_price_sqm == null ? regionPrice('rental_price_sqm') : null;
+  // Neighbour estimates (spatialEstimate.ts) for an area with no measured price. The
+  // prerendered payload is built from the GeoJSON, which carries none, so they come from
+  // the region file loaded for the MiniMap — the static HTML and JSON-LD keep showing
+  // only measured data.
+  const estimateSource = (state.geoFeature?.properties ?? d) as unknown as Record<string, unknown>;
+  const propertyPriceFallback = d.property_price_sqm == null ? estimateFor(estimateSource, 'property_price_sqm') : null;
+  const rentalPriceFallback = d.rental_price_sqm == null ? estimateFor(estimateSource, 'rental_price_sqm') : null;
 
   // SearchBar/NeighborhoodProfilePage display Swedish name when on the Swedish route.
   const displayName = lang === 'sv' && d.namn ? d.namn : d.nimi;
@@ -886,8 +877,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
             avgLabel={avgStr(d.property_price_sqm, 'property_price_sqm', v => `${formatNumber(v)} €/m²`)}
             propertyKey="property_price_sqm"
             subregionEstimate={d.property_price_sqm == null && propertyPriceFallback != null}
-            subregionBadge={t('data.subregion_estimate')}
-            subregionNote={t('data.subregion_estimate_desc').replace('{region}', cityName)}
+            subregionBadge={t('data.neighbour_estimate')}
+            subregionNote={t('data.neighbour_estimate_desc')}
           />
           {/* Densities carry their /km² unit in the VALUE (as the map and the in-app
               panel do). Without it these read as bare counts — "11" next to "Avg: 16"
@@ -953,8 +944,8 @@ export const NeighborhoodProfilePage: React.FC = () => {
                 // from profile.unit_per_month, so they cannot disagree again.
                 value={`${formatDecimal(d.rental_price_sqm ?? rentalPriceFallback, 2)} €/m²${t('profile.unit_per_month')}`}
                 estimate={d.rental_price_sqm == null}
-                estimateBadge={t('data.subregion_estimate')}
-                estimateNote={t('data.subregion_estimate_desc').replace('{region}', cityName)}
+                estimateBadge={t('data.neighbour_estimate')}
+                estimateNote={t('data.neighbour_estimate_desc')}
               />
             )}
             {d.avg_construction_year != null && (

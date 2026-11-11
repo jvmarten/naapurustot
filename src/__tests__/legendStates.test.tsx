@@ -54,11 +54,11 @@ describe('Legend grid badge (CF-1)', () => {
 });
 
 describe('Legend other captions', () => {
-  it('explains the hatched sub-region estimate fills when they are in use', () => {
+  it('explains the hatched neighbour-estimate fills when they are in use', () => {
     const { rerender } = render(<Legend layerId="property_price" />);
-    const note = t('legend.subregion_estimate');
+    const note = t('legend.neighbour_estimate');
     expect(screen.queryByText(note)).toBeNull();
-    rerender(<Legend layerId="property_price" subregionEstimate />);
+    rerender(<Legend layerId="property_price" neighbourEstimate />);
     expect(screen.getByText(note)).toBeInTheDocument();
   });
 

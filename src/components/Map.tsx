@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson';
-import { buildFillColorExpression, getInterpolatedColor, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
+import { buildFillColorExpression, type LayerId, type LayerConfig, getLayerById } from '../utils/colorScales';
 import { ensureHatchImage } from '../utils/hatchPattern';
 import { GRID_ZOOM_FADE_IN, buildFillOpacityFadeOut, buildGridFillOpacity } from '../utils/gridFade';
 import { buildFillOpacity } from '../utils/fillOpacity';
@@ -68,10 +68,6 @@ interface MapProps {
   planningData?: FeatureCollection | null;
   /** CF-1: fires after the camera settles, so the host can capture the viewport for "copy link to this view". */
   onMoveEnd?: (camera: { center: [number, number]; zoom: number }) => void;
-  /** T1: in a region view with a housing/rent price layer active, the seutukunta's
-   *  average for that metric. Areas with no own value are painted this value's color
-   *  (still hatched, so they read as a sub-region estimate) instead of plain gray. */
-  priceFallbackValue?: number | null;
   /** LO-1: fires once the choropleth layers exist on a loaded style — i.e. the map
    *  is actually about to paint something, not merely mounted. The host uses it to
    *  hold the cold-load overlay until there is a map behind it; without it the
@@ -314,7 +310,7 @@ const DRAW_SNAP_LINE_LAYER = 'draw-snap-line';
 // utils/fillOpacity.ts. Its IMPORTANT note applies: never replace it with a
 // constant via setPaintProperty.
 
-export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, priceFallbackValue = null, onReady, onRegionClick, country = null, dataCountries = COUNTRY_IDS }) => {
+export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover, onClick, flyTo, selectedPno = null, pinnedPnos = EMPTY_ARRAY, filterActive = false, filterMatchPnos = EMPTY_SET, qualityVersion = 0, colorblind = 'off', wizardHighlightPnos = EMPTY_ARRAY, fillOpacity = 1, gridData = null, drawMode = false, onDrawClick, onDrawDoubleClick, drawVertices, drawnPolygon = null, drawnAreaPnos = EMPTY_ARRAY, selectMode = false, selectedAreaPnos = EMPTY_ARRAY, onSelectAreaClick, layerConfig, isochrone = null, planningData = null, onMoveEnd, onReady, onRegionClick, country = null, dataCountries = COUNTRY_IDS }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const hoveredIdRef = useRef<string | null>(null);
@@ -387,19 +383,6 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
   // flyTo skipped — on a remount the constructor can't reproduce a bounds-only/zoom-less
   // target, so the flyTo effect must run its fitBounds to frame it correctly.
   const isFirstMountRef = useRef(isFirstMapMount);
-
-  // T1: keep the latest price fallback value reachable from effect/setTimeout closures.
-  const priceFallbackValueRef = useRef(priceFallbackValue);
-  priceFallbackValueRef.current = priceFallbackValue;
-  // Region-estimate fill color for a price layer (null areas paint this instead of
-  // gray, and are still hatched by NO_DATA_LAYER so they read as a sub-region estimate).
-  // Returns undefined for non-price layers or when no seutukunta average is available.
-  const fillFallbackColor = (l: LayerConfig): string | undefined => {
-    const v = priceFallbackValueRef.current;
-    if (v == null || !isFinite(v)) return undefined;
-    if (l.property !== 'property_price_sqm' && l.property !== 'rental_price_sqm') return undefined;
-    return getInterpolatedColor(l, v);
-  };
 
   // Initialize map
   useEffect(() => {
@@ -634,7 +617,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         type: 'fill',
         source: SOURCE_ID,
         paint: {
-          'fill-color': buildFillColorExpression(layer, undefined, fillFallbackColor(layer)),
+          'fill-color': buildFillColorExpression(layer),
           'fill-color-transition': { duration: 300, delay: 0 },
           'fill-opacity': buildFillOpacity(fillOpacity) as maplibregl.ExpressionSpecification,
           'fill-opacity-transition': { duration: 300, delay: 0 },
@@ -1241,7 +1224,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // fill-opacity is set to 0 and the early return leaves the choropleth blank.
       // Mirrors the no-fade branch in the `else` below and the flyTo reduce-motion path.
       if (prefersReducedMotion()) {
-        map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
+        map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
         if (map.getLayer(GRID_FILL_LAYER) && layer.gridProperty) {
           map.setPaintProperty(GRID_FILL_LAYER, 'fill-color', buildFillColorExpression(layer, layer.gridProperty));
         }
@@ -1269,7 +1252,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
         if (!mapRef.current || !isStyleAlive(mapRef.current) || !mapRef.current.getLayer(FILL_LAYER)) return;
 
         // Swap the color expression while fully transparent
-        mapRef.current.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
+        mapRef.current.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
 
         // Update grid layer color if present
         if (mapRef.current.getLayer(GRID_FILL_LAYER) && layer.gridProperty) {
@@ -1322,7 +1305,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       // Same active layer; only its config changed — colorblind toggle, price
       // fallback, or (critically) the PO-2 time-series auto-snap-to-latest-year that
       // fires immediately after a time-series layer is (re)selected. Recolor at once.
-      map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer, undefined, fillFallbackColor(layer)));
+      map.setPaintProperty(FILL_LAYER, 'fill-color', buildFillColorExpression(layer));
       // Always re-assert the resting opacity here. A layer-switch dip may have set
       // fill-opacity to DIP_OPACITY and had its fade-back-in timer cancelled by this
       // very re-run (the year auto-snap is the LAST transition this effect runs for a
@@ -1348,7 +1331,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- data/gridData/fillOpacity are guards, not triggers
-  }, [activeLayer, colorblind, layerConfig, priceFallbackValue]);
+  }, [activeLayer, colorblind, layerConfig]);
 
   // Filter-aware rendering: dim non-matching neighborhoods and highlight matching ones.
   // Uses setFilter on an existing layer instead of remove/add to avoid layer recreation overhead.
