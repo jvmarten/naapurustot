@@ -36,6 +36,7 @@ import { loadSwedishAreas, generateSePage } from './prerender-se.mjs';
 // embed a render-ready payload. Both modules have type-only imports, so Node's
 // TypeScript stripping (Node 22.18+/24) loads them without a build step.
 import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
+import { loadCountryRanges } from './lib/countryRanges.mjs';
 import {
   computeMetroAverages,
   computeChangeMetrics,
@@ -241,8 +242,11 @@ const SIMILAR_LABELS = {
 
 // Process every feature exactly as the client's dataLoader does (same order),
 // so each page can embed a payload the React app renders from instantly —
-// avoiding the ~1.7 MB region_properties.json fetch before first paint.
-computeQualityIndices(geojson.features);
+// avoiding the ~1.7 MB region_properties.json fetch before first paint. The quality index
+// is scored against the national ranges, as dataLoader does (getCountryRanges): scored
+// against the GeoJSON itself it differed from the map and from the app's own profile page
+// once the payload was replaced by a client-side load.
+computeQualityIndices(geojson.features, undefined, loadCountryRanges(ROOT));
 computeChangeMetrics(geojson.features);
 computeQuickWinMetrics(geojson.features);
 const metroAverages = computeMetroAverages(geojson.features);
