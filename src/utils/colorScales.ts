@@ -208,6 +208,7 @@ export interface LayerConfig {
 
 import { getLang, t } from './i18n';
 import { HOME_COUNTRY, PREFIXED_COUNTRIES, countryDef, forCountry, type CountryId } from './countries.ts';
+import { estimateKey, hasEstimates } from './spatialEstimate.ts';
 
 // Cache Intl.NumberFormat per locale to avoid recreating on every format call.
 // These format functions run on the tooltip hot path (~60Hz mousemove).
@@ -1709,14 +1710,13 @@ export function rescaleLayerToData(
  * Build a MapLibre style expression for interpolated fill color.
  * Returns gray (#d1d5db) for features where the property is null/missing.
  */
-export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string, fallbackColor?: string): ExpressionSpecification {
+export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: string): ExpressionSpecification {
   const prop = propertyOverride ?? layer.property;
   // The typeof guard below ensures we only reach the interpolation for actual numbers,
   // so no coercion fallback is needed. String-encoded numeric properties are converted
   // to real numbers by useMapData at load time.
-  const numericValue = ['get', prop];
-  const ramp = (stops: number[]) => {
-    const r: unknown[] = ['interpolate', ['linear'], numericValue];
+  const ramp = (stops: number[], key: string) => {
+    const r: unknown[] = ['interpolate', ['linear'], ['get', key]];
     for (let i = 0; i < stops.length; i++) r.push(stops[i], layer.colors[i]);
     return r;
   };
@@ -1725,25 +1725,28 @@ export function buildFillColorExpression(layer: LayerConfig, propertyOverride?: 
   // feature carries its region id in `city`, prefixed outside HOME (countries.ts). Grid
   // cells (propertyOverride) are HOME's alone.
   const own = propertyOverride ? [] : ownScaleCountries(layer);
-  const interpolation = own.length
+  const interpolation = (key: string) => own.length
     ? ['case', ...own.flatMap((c) => [
-        ['==', ['slice', ['to-string', ['get', 'city']], 0, 3], countryDef(c).regionPrefix], ramp(countryStops(layer, c)),
-      ]), ramp(layer.stops)]
-    : ramp(layer.stops);
+        ['==', ['slice', ['to-string', ['get', 'city']], 0, 3], countryDef(c).regionPrefix], ramp(countryStops(layer, c), key),
+      ]), ramp(layer.stops, key)]
+    : ramp(layer.stops, key);
+  const isNumber = (key: string) => ['all',
+    ['has', key],
+    ['!=', ['get', key], null],
+    ['==', ['typeof', ['get', key]], 'number'],
+  ];
   // Show gray for features where the property is null/missing/non-numeric.
   // The typeof check prevents non-numeric strings (e.g. "N/A") from being
-  // silently coerced to 0 by the to-number fallback. T1: when a `fallbackColor`
-  // is given (a region-estimate fill for a price layer), null areas paint that
-  // constant color instead of gray — they're then hatched by NO_DATA_LAYER, so
-  // they read as "sub-region estimate" rather than measured data.
+  // silently coerced to 0 by the to-number fallback. A layer with neighbour estimates
+  // (spatialEstimate.ts) paints an area with no measured value from its `<prop>_est`
+  // instead — NO_DATA_LAYER still hatches it (it tests the measured key), so the map
+  // reads it as an estimate rather than as measured data.
+  const est = !propertyOverride && hasEstimates(prop) ? estimateKey(prop) : null;
   return [
     'case',
-    ['all',
-      ['has', prop],
-      ['!=', ['get', prop], null],
-      ['==', ['typeof', ['get', prop]], 'number'],
-    ],
-    interpolation,
-    fallbackColor ?? '#d1d5db',
+    isNumber(prop),
+    interpolation(prop),
+    ...(est ? [isNumber(est), interpolation(est)] : []),
+    '#d1d5db',
   ] as unknown as ExpressionSpecification;
 }

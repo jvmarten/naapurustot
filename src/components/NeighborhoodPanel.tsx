@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffe
 import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatFineDensity, formatEuroSqm } from '../utils/formatting';
+import { estimateFor } from '../utils/spatialEstimate';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, getQualityCategories, getQualityBandPosition, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
@@ -105,10 +106,7 @@ interface PanelProps {
   similarityWeights?: Record<string, number>;
   onSimilarityWeightChange?: (key: string, value: number) => void;
   onSimilarityToggle?: (key: string) => void;
-  /** T1: the selected area's seutukunta (sub-region) averages — used as a display-only
-   *  fallback for housing/rent price when the area has no own value. */
-  regionPriceAverages?: Record<string, number> | null;
-  /** T1: the selected area's seutukunta display name, shown in the fallback disclaimer. */
+  /** The selected area's seutukunta display name. */
   regionName?: string;
   /** Name of the cohort a region-scoped standing is ranked within — every region on the
    *  map when several are shown. Defaults to `regionName`. */
@@ -149,12 +147,10 @@ const StatRow: React.FC<{
   property?: string;
   /** Optional trend data to render an inline sparkline */
   sparkline?: { data: import('../utils/metrics').TrendDataPoint[]; color?: string } | null;
-  /** T1: the displayed value is the seutukunta (sub-region) average because this area
-   *  has no own value — render a "Seutuarvio" badge + disclaimer. */
-  subregionEstimate?: boolean;
-  /** T1: the sub-region's display name, interpolated into the disclaimer. */
-  subregionName?: string;
-}> = React.memo(({ label, value, diff, diffClass, property, sparkline, subregionEstimate, subregionName }) => {
+  /** The displayed value is a neighbour estimate (spatialEstimate.ts) because this area
+   *  has no measured value — render an "Arvio" badge + disclaimer. */
+  neighbourEstimate?: boolean;
+}> = React.memo(({ label, value, diff, diffClass, property, sparkline, neighbourEstimate }) => {
   useI18nVersion();
   // CF-5: "vs <reference>" when a custom reference baseline is active, else "vs metro".
   const baselineLabel = React.useContext(BaselineLabelContext);
@@ -282,9 +278,9 @@ const StatRow: React.FC<{
                     {t('data.estimate_desc')}
                   </span>
                 )}
-                {subregionEstimate && (
+                {neighbourEstimate && (
                   <span className="block mb-1.5 text-amber-300">
-                    {t('data.subregion_estimate_desc').replace('{region}', subregionName ?? '')}
+                    {t('data.neighbour_estimate_desc')}
                   </span>
                 )}
                 {/* PO-4: registry caveat note (i18n key) — derivation/coverage/mixed-vintage details */}
@@ -311,11 +307,11 @@ const StatRow: React.FC<{
         {sparkline?.data && sparkline.data.length >= 2 && (
           <Sparkline data={sparkline.data} color={sparkline.color} />
         )}
-        {subregionEstimate && (
+        {neighbourEstimate && (
           <span className="inline-flex items-center rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide
                            bg-amber-400/15 text-amber-600 dark:text-amber-400 border border-amber-400/30"
-                title={t('data.subregion_estimate_desc').replace('{region}', subregionName ?? '')}>
-            {t('data.subregion_estimate')}
+                title={t('data.neighbour_estimate_desc')}>
+            {t('data.neighbour_estimate')}
           </span>
         )}
         <span className="text-surface-900 dark:text-white font-medium">{value}</span>
@@ -447,16 +443,15 @@ const ActiveLayerCard: React.FC<{
   activeLayer: LayerId;
   props: NeighborhoodProperties;
   averages: Record<string, number>;
-  regionFallbacks?: Record<string, number> | null;
   onJump?: () => void;
-}> = React.memo(({ activeLayer, props, averages, regionFallbacks, onJump }) => {
+}> = React.memo(({ activeLayer, props, averages, onJump }) => {
   useI18nVersion();
   const baselineLabel = React.useContext(BaselineLabelContext);
   const layer = getLayerById(activeLayer);
   const own = toNum((props as unknown as Record<string, unknown>)[layer.property]);
-  // Same sub-region estimate the map tints and the tooltip shows for a price layer
-  // with no own value — labelled as such, never passed off as the area's figure.
-  const fallback = own == null ? (regionFallbacks?.[layer.property] ?? null) : null;
+  // Same neighbour estimate the map paints and the tooltip shows for an area with no
+  // measured value — labelled as such, never passed off as the area's figure.
+  const fallback = own == null ? estimateFor(props as unknown as Record<string, unknown>, layer.property) : null;
   const value = own ?? fallback;
   const text = value == null
     ? t('tooltip.no_data')
@@ -504,7 +499,7 @@ const ActiveLayerCard: React.FC<{
         )}
         <span className={`text-lg font-semibold tabular-nums ${value == null ? 'text-surface-400 italic' : 'text-surface-900 dark:text-white'}`}>{text}</span>
         {fallback != null && (
-          <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">{t('data.subregion_estimate')}</span>
+          <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">{t('data.neighbour_estimate')}</span>
         )}
         {cmp && <span className={`text-xs ${cmp.cls}`}>{cmp.text}</span>}
       </div>
@@ -1073,7 +1068,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', qualityScopeMulti = false, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionPriceAverages, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', qualityScopeMulti = false, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
   // QW-4: capture the i18n version so memos that build translated strings (the
   // MOBILE_SECTIONS tab labels) recompute on a language switch / lazy-dict arrival.
   const i18nVersion = useI18nVersion();
@@ -1099,11 +1094,13 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus].some((v) => v != null && v > 0),
     [d.ko_yl_kork, d.ko_al_kork, d.ko_ammat, d.ko_perus]);
 
-  // T1: housing-sale / rent price fall back to the seutukunta (sub-region) average when
-  // this area has no own value. Display-only — the choropleth/JSON-LD stay real per-area
-  // data. `null` fallback means even the region has no value, so the row keeps showing '—'.
-  const propertyPriceFallback = d.property_price_sqm == null ? (regionPriceAverages?.property_price_sqm ?? null) : null;
-  const rentalPriceFallback = d.rental_price_sqm == null ? (regionPriceAverages?.rental_price_sqm ?? null) : null;
+  // Sale price / rent / price-to-rent with no measured value show the area's neighbour
+  // estimate (spatialEstimate.ts), badged as one. Display-only: the comparison against
+  // the average and the JSON-LD stay on measured data. null → the row shows '—'.
+  const dRec = d as unknown as Record<string, unknown>;
+  const propertyPriceFallback = estimateFor(dRec, 'property_price_sqm');
+  const rentalPriceFallback = estimateFor(dRec, 'rental_price_sqm');
+  const priceToRentFallback = estimateFor(dRec, 'price_to_rent_ratio');
 
   // CF-3: nearby kaavat & hankkeet for the selected area, lazy-fetched from a free
   // per-region shard (out of the first-paint payload). Skipped for metro aggregates.
@@ -1649,7 +1646,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           activeLayer={activeLayer!}
           props={d}
           averages={avg}
-          regionFallbacks={regionPriceAverages}
           onJump={jumpMissing === activeLayer ? undefined : jumpToActiveLayer}
         />
       )}
@@ -1905,15 +1901,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diff={d.rental_price_sqm != null ? formatDiff(d.rental_price_sqm, avg.rental_price_sqm) : undefined}
             diffClass={diffColor(d.rental_price_sqm, avg.rental_price_sqm, false)}
             property="rental_price_sqm"
-            subregionEstimate={d.rental_price_sqm == null && rentalPriceFallback != null}
-            subregionName={regionName}
+            neighbourEstimate={rentalPriceFallback != null}
           />
           <StatRow
             label={t('panel.price_to_rent')}
-            value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)} v` : '—'}
+            value={d.price_to_rent_ratio != null ? `${Number(d.price_to_rent_ratio).toFixed(1)} v`
+              : (priceToRentFallback != null ? `${priceToRentFallback.toFixed(1)} v` : '—')}
             diff={formatDiff(d.price_to_rent_ratio, avg.price_to_rent_ratio)}
             diffClass={diffColor(d.price_to_rent_ratio, avg.price_to_rent_ratio, false)}
             property="price_to_rent_ratio"
+            neighbourEstimate={priceToRentFallback != null}
           />
           {/* PO-6: rent source (StatFin asvu 13eb) is retired — flag the frozen snapshot */}
           <DiscontinuedCaveat property="rental_price_sqm" />
@@ -1986,8 +1983,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             diff={d.property_price_sqm != null ? formatDiff(d.property_price_sqm, avg.property_price_sqm) : undefined}
             diffClass={diffColor(d.property_price_sqm, avg.property_price_sqm, null)}
             property="property_price_sqm"
-            subregionEstimate={d.property_price_sqm == null && propertyPriceFallback != null}
-            subregionName={regionName}
+            neighbourEstimate={propertyPriceFallback != null}
           />
           <StatRow
             label={t('panel.property_price_change')}

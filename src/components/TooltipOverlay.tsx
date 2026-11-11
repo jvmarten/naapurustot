@@ -4,6 +4,7 @@ import { getTooltipSnapshot, subscribeTooltip, type TooltipData } from '../utils
 import { formatNoise, type LayerConfig } from '../utils/colorScales';
 import { t, useI18nVersion } from '../utils/i18n';
 import { parseSchools } from '../utils/formatting';
+import { estimateFor } from '../utils/spatialEstimate';
 
 // SSR/prerender-safe: useSyncExternalStore requires a server snapshot
 // to avoid crashes during server-side rendering (scripts/prerender.mjs).
@@ -15,8 +16,6 @@ interface TooltipOverlayProps {
   hidden?: boolean;
   effectiveLayer: LayerConfig;
   metroAverage: number | undefined;
-  /** T1: seutukunta price average shown for price-layer areas with no own value. */
-  priceFallbackValue?: number | null;
   /** Multi-region view: each region's own averages, so "vs. avg" compares an area with
    *  its own seutukunta rather than the blend of every region on the map. */
   regionAverages?: Record<string, Record<string, number>> | null;
@@ -26,7 +25,7 @@ interface TooltipOverlayProps {
  * Self-contained tooltip renderer that subscribes to the tooltip external store.
  * Only this component re-renders on mouse move — the parent App is unaffected.
  */
-export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden = false, effectiveLayer, metroAverage, priceFallbackValue, regionAverages }) => {
+export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden = false, effectiveLayer, metroAverage, regionAverages }) => {
   useI18nVersion();
   const tooltip = useSyncExternalStore(subscribeTooltip, getTooltipSnapshot, getServerSnapshot);
 
@@ -46,11 +45,11 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
       : null;
 
   const ownValue = isGridCell ? (tooltip.gridValue as number) : (tooltip.props[effectiveLayer.property] as number | null);
-  // T1: a price-layer area with no own value but a seutukunta average shows the
-  // estimate (matching the map's region-estimate tint), captioned as a sub-region
-  // estimate. The "vs avg" comparison is suppressed — it would compare the region
-  // average against itself.
-  const useFallback = !isGridCell && ownValue == null && priceFallbackValue != null;
+  // An area with no measured value but a neighbour estimate (spatialEstimate.ts) shows
+  // the estimate — the colour the map paints it — captioned as one. The "vs avg"
+  // comparison is suppressed: it is not the area's own figure.
+  const estimate = isGridCell ? null : estimateFor(tooltip.props as Record<string, unknown>, effectiveLayer.property);
+  const useFallback = ownValue == null && estimate != null;
   // No mapped noise zone reaches the area: say it is quiet and how quiet is known,
   // and drop the "vs avg" percentage, which would be computed from the background.
   const noiseFloor = !isGridCell && effectiveLayer.property === 'noise_pollution' && ownValue != null
@@ -62,12 +61,12 @@ export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidde
       x={tooltip.x}
       y={tooltip.y}
       name={tooltip.props.nimi || tooltip.props.pno}
-      value={useFallback ? priceFallbackValue! : ownValue}
+      value={useFallback ? estimate : ownValue}
       layer={effectiveLayer}
       valueText={noiseFloor != null ? formatNoise(ownValue!, noiseFloor) : undefined}
       metroAverage={isGridCell || useFallback || noiseFloor != null ? undefined : (regionAverages?.[tooltip.props.city ?? '']?.[effectiveLayer.property] ?? metroAverage)}
       schools={schools}
-      cellLabel={isGridCell ? t('tooltip.cell_value') : (useFallback ? t('data.subregion_estimate') : undefined)}
+      cellLabel={isGridCell ? t('tooltip.cell_value') : (useFallback ? t('data.neighbour_estimate') : undefined)}
     />
   );
 });

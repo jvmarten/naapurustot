@@ -77,6 +77,7 @@ import { UserMenu, type FavoriteEntry } from './components/UserMenu';
 import { FavoritesButton } from './components/FavoritesButton';
 import { ShortlistTray } from './components/ShortlistTray';
 import { type LayerId, type ColorblindType, layerInCountry, layerForCountry, DEFAULT_LAYER_BY_COUNTRY, getLayerById, getColorblindMode, setColorblindMode, rescaleLayerToData, clearRescaleCache, TIME_SERIES_LAYERS } from './utils/colorScales';
+import { hasEstimates } from './utils/spatialEstimate';
 import { readInitialUrlState, useSyncUrlState, buildViewportShareUrl, buildShortlistShareUrl, type UrlViewport, type UrlDraw } from './hooks/useUrlState';
 import type { NeighborhoodProperties } from './utils/metrics';
 import { computeMetroAverages, timeSeriesYearProp, getAvailableYears } from './utils/metrics';
@@ -901,43 +902,11 @@ const App: React.FC = () => {
     [referenceProps, referencePno, selected?.pno, selected?.city, regionAverages, cityAverages],
   );
 
-  // T1: the selected area's seutukunta (sub-region) housing/rent price averages, used
-  // as a display-only fallback in the panel/profile when the area has no own value.
-  // In a single-region view `cityAverages` already IS this seutukunta's average; in the
-  // all-Finland view, read the prebuilt per-seutukunta aggregates. Only the two price
-  // fields are forwarded (coerced to finite numbers).
-  const selectedRegionAverages = useMemo<Record<string, number> | null>(() => {
-    const city = selected?.city;
-    if (!city) return null;
-    const src: Record<string, unknown> | undefined =
-      cityFilter !== 'all' ? regionAverages?.[city] ?? cityAverages : aggregates?.regions?.[city];
-    if (!src) return null;
-    const out: Record<string, number> = {};
-    const pp = src.property_price_sqm;
-    const rp = src.rental_price_sqm;
-    if (typeof pp === 'number' && isFinite(pp)) out.property_price_sqm = pp;
-    if (typeof rp === 'number' && isFinite(rp)) out.rental_price_sqm = rp;
-    return out;
-  }, [selected?.city, cityFilter, regionAverages, cityAverages, aggregates]);
   const selectedRegionName = selected?.city ? t('city.' + selected.city) : '';
   // The cohort a region-scoped standing is ranked within: with several regions on the
   // map that is all of them, not the area's own seutukunta.
   const scopeRegionName = multiRegion ? displayed.map((r) => t('city.' + r)).join(' + ') : selectedRegionName;
 
-  // T1: in a region view with a housing/rent price layer active, the seutukunta's
-  // average for that metric — drives the map's region-estimate tint and the tooltip
-  // fallback for areas with no own value. Null in the all-Finland view (which shows
-  // region aggregates, not per-area gaps), during time-scrubbing (the estimate is
-  // not year-matched), and with several regions on the map (one tint cannot stand for
-  // several seutukunnat's averages — those gaps get the ordinary no-data hatch).
-  const priceFallbackValue = useMemo<number | null>(() => {
-    if (cityFilter === 'all' || multiRegion || timeYear != null) return null;
-    const prop = activeLayer === 'property_price' ? 'property_price_sqm'
-      : activeLayer === 'rental_price' ? 'rental_price_sqm' : null;
-    if (!prop) return null;
-    const v = cityAverages[prop];
-    return typeof v === 'number' && isFinite(v) ? v : null;
-  }, [cityFilter, multiRegion, timeYear, activeLayer, cityAverages]);
   const handleSetReference = useCallback((pno: string | null) => {
     setReferencePno(pno);
     // QW-2: mirror to localStorage so "my home" survives reloads (URL `ref` still
@@ -956,12 +925,24 @@ const App: React.FC = () => {
     return getAvailableYears(filteredData.features, timeHistoryProp);
   }, [timeHistoryProp, cityFilter, filteredData]);
 
+  const latestYear = availableYears.length ? availableYears[availableYears.length - 1] : null;
+  // In a region view, a layer with neighbour estimates paints its no-data areas from
+  // them (hatched); the legend says what the hatch means. Not in the national views
+  // (region aggregates, no per-area gaps) nor on an earlier year of a time series
+  // (estimates are of the current values only).
+  const showsEstimates = cityFilter !== 'all' && (timeYear == null || timeYear === latestYear)
+    && hasEstimates(getLayerById(activeLayer).property);
+
   const prevEffectiveLayerRef = useRef<ReturnType<typeof getLayerById> | null>(null);
   const effectiveLayer = useMemo(() => {
     const base = layerForCountry(getLayerById(activeLayer), viewCountry);
     // PO-2: scrub the choropleth to a single year's value while keeping the
     // metric's fixed color scale (so the animation shows change, not a rescale).
     if (timeYear != null && timeHistoryProp) {
+      // The latest year IS the current measured value (spatialEstimate.test pins that), and
+      // the current key covers more areas than the series and carries neighbour estimates
+      // — draw it, on the same fixed scale, rather than the thinner series.
+      if (timeYear === latestYear && hasEstimates(base.property)) return base;
       return { ...base, property: timeSeriesYearProp(timeHistoryProp, timeYear) };
     }
     if (comparisonScope !== 'region' || cityFilter === 'all' || !filteredData) {
@@ -981,7 +962,7 @@ const App: React.FC = () => {
   // effective layer must recompute when the mode changes — otherwise the choropleth
   // keeps the old palette until a reload (the cache is cleared in setColorblindMode).
   // eslint-disable-next-line react-hooks/exhaustive-deps -- qualityVersion signals in-place data mutation for quality_index layer
-  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp, colorblind, viewCountry]);
+  }, [activeLayer, comparisonScope, cityFilter, filteredData, qualityVersion, timeYear, timeHistoryProp, latestYear, colorblind, viewCountry]);
 
   // CF-2: effective config for the split view's SECONDARY (right) pane — same region
   // rescale + colorblind palette as effectiveLayer, so split mode no longer renders a
@@ -2868,7 +2849,6 @@ const App: React.FC = () => {
             isochrone={isochronePolygon}
             planningData={planningOverlay}
             onMoveEnd={handleMapMoveEnd}
-            priceFallbackValue={priceFallbackValue}
             onReady={handleMapReady}
             onRegionClick={(cityFilter === 'all' && !countryScope) || IS_EMBED ? undefined : handleRegionClick}
             country={cityFilter === 'all' ? countryScope : null}
@@ -3284,7 +3264,7 @@ const App: React.FC = () => {
 
       {/* Legend — repositioned for mobile (MO2: suppressed on mobile when an area panel covers it;
           UX MO-2: also during the touch peek — the peek bar paints over the same bottom band) */}
-      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} subregionEstimate={priceFallbackValue != null} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} areaHint={showAreaHint} onDismissAreaHint={dismissAreaHint} country={viewCountry} />
+      <Legend layerId={activeLayer} colorblind={colorblind} layerConfig={effectiveLayer} lang={lang} gridLoading={gridLoading && hasGridData(activeLayer)} gridError={gridError && hasGridData(activeLayer)} hidden={!!selected || !!peek || promptAtBottom} neighbourEstimate={showsEstimates} gridFilterInactive={gridCellsVisible && ((showFilter && filters.length > 0) || wizardResultPnos.length > 0)} gridActive={gridCellsVisible} areaHint={showAreaHint} onDismissAreaHint={dismissAreaHint} country={viewCountry} />
 
       {/* PO-2: Time slider / historical playback (only when a time-series metric is active) */}
       {!IS_EMBED && timeYear != null && availableYears.length > 1 && (
@@ -3305,7 +3285,6 @@ const App: React.FC = () => {
       <TooltipOverlay
         effectiveLayer={effectiveLayer}
         metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
-        priceFallbackValue={priceFallbackValue}
         regionAverages={regionAverages}
       />
 
@@ -3348,7 +3327,6 @@ const App: React.FC = () => {
             referencePno={referencePno}
             referenceName={referenceName}
             onSetReference={handleSetReference}
-            regionPriceAverages={selectedRegionAverages}
             regionName={selectedRegionName}
             scopeRegionName={scopeRegionName}
             wizardProfile={wizardProfile}
