@@ -149,6 +149,15 @@ export interface NeighborhoodProperties {
   student_share: number | null;
   detached_house_share: number | null;
   property_price_sqm: number | null;
+  // €/m² by dwelling type and the year's sales count (ashi 13mu); absent where suppressed.
+  price_sqm_studio?: number | null;
+  price_sqm_two_room?: number | null;
+  price_sqm_three_room?: number | null;
+  price_sqm_rowhouse?: number | null;
+  property_sales_count?: number | null;
+  // Municipal (is_proxy): 2026 income tax rate (Verohallinto), net migration ‰/yr 2023–2025 (StatFin 11ae).
+  municipal_tax_rate?: number | null;
+  net_migration_rate?: number | null;
   transit_stop_density: number | null;
   air_quality_index: number | null;
   crime_index: number | null;

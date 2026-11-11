@@ -1,6 +1,6 @@
 {
-  "generated": "2026-11-10T13:40:28.712Z",
-  "source_hash": "0dba85ab0f6e251b",
+  "generated": "2026-11-11T12:47:05.262Z",
+  "source_hash": "ddd7bb7b3847604e",
   "rows_total": 3018,
   "metrics": {
     "active_plan_count": {
@@ -283,6 +283,22 @@
       "row_count": 2626,
       "coverage_pct": 87
     },
+    "municipal_tax_rate": {
+      "source": "Verohallinto (kuntien tuloveroprosentit 2026)",
+      "vintage": 2026,
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
+    "net_migration_rate": {
+      "source": "Tilastokeskus (StatFin muutl 11ae, kokonaisnettomuutto)",
+      "vintage": "2023–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "row_count": 3018,
+      "coverage_pct": 100
+    },
     "new_construction_pct": {
       "source": "Tilastokeskus (Paavo)",
       "vintage": 2024,
@@ -411,6 +427,38 @@
       "row_count": 3018,
       "coverage_pct": 100
     },
+    "price_sqm_rowhouse": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 670,
+      "coverage_pct": 22.2
+    },
+    "price_sqm_studio": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 332,
+      "coverage_pct": 11
+    },
+    "price_sqm_three_room": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 402,
+      "coverage_pct": 13.3
+    },
+    "price_sqm_two_room": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 455,
+      "coverage_pct": 15.1
+    },
     "price_to_rent_ratio": {
       "source": "Tilastokeskus (PxWeb, asvu 15fa + ashi 13mu)",
       "vintage": 2025,
@@ -442,6 +490,14 @@
       "is_proxy": false,
       "row_count": 1097,
       "coverage_pct": 36.3
+    },
+    "property_sales_count": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false,
+      "row_count": 1318,
+      "coverage_pct": 43.7
     },
     "public_sector_jobs_pct": {
       "source": "Tilastokeskus (Paavo)",

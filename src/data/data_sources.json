@@ -45,6 +45,11 @@
       "url": "https://www.lipas.fi/",
       "license": "CC BY 4.0"
     },
+    "verohallinto": {
+      "name": "Verohallinto",
+      "url": "https://www.vero.fi/",
+      "license": "CC BY 4.0"
+    },
     "traficom": {
       "name": "Traficom",
       "url": "https://www.traficom.fi/",
@@ -214,6 +219,57 @@
       "granularity": "postal",
       "is_proxy": false,
       "note": "note.largest_municipalities"
+    },
+    "price_sqm_studio": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "price_sqm_two_room": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "price_sqm_three_room": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "price_sqm_rowhouse": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "property_sales_count": {
+      "source": "Tilastokeskus (PxWeb, ashi 13mu)",
+      "publisher": "tilastokeskus",
+      "vintage": 2025,
+      "granularity": "postal",
+      "is_proxy": false
+    },
+    "municipal_tax_rate": {
+      "source": "Verohallinto (kuntien tuloveroprosentit 2026)",
+      "publisher": "verohallinto",
+      "vintage": 2026,
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "note.municipal_tax_rate"
+    },
+    "net_migration_rate": {
+      "source": "Tilastokeskus (StatFin muutl 11ae, kokonaisnettomuutto)",
+      "publisher": "tilastokeskus",
+      "vintage": "2023–2025",
+      "granularity": "postal",
+      "is_proxy": true,
+      "note": "note.net_migration_rate"
     },
     "he_vakiy": {
       "source": "Tilastokeskus (Paavo)",

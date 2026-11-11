@@ -246,6 +246,10 @@ const EXCLUDED_PROPS = new Set([
   // CF-7: property-price & crime time-series arrays are trend data, not a
   // coverage metric — exclude from the per-region density count.
   'property_price_history', 'crime_index_history', 'tree_canopy_history',
+  // €/m² by dwelling type and sales count break property_price_sqm down; they
+  // are not metrics of their own (and are sparser, by StatFin's suppression).
+  'price_sqm_studio', 'price_sqm_two_room', 'price_sqm_three_room', 'price_sqm_rowhouse',
+  'property_sales_count',
   // Foreign-language estimate time series — trend data, not a coverage metric.
   'foreign_language_history',
   // The noise layer's display bound for areas no mapped zone reaches, not a metric.

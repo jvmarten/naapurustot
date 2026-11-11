@@ -1,284 +1,284 @@
 {
   "total": {
     "regions": 140,
-    "topojson_bytes": 20444180,
-    "gzip_bytes": 6190920,
+    "topojson_bytes": 20552850,
+    "gzip_bytes": 6208211,
     "feature_count": 9178
   },
   "regions": {
     "aanekoski": {
-      "topojson_bytes": 39956,
-      "gzip_bytes": 13851,
+      "topojson_bytes": 40776,
+      "gzip_bytes": 13984,
       "feature_count": 20
     },
     "aboland_turunmaa": {
-      "topojson_bytes": 933708,
-      "gzip_bytes": 254518,
+      "topojson_bytes": 934867,
+      "gzip_bytes": 254648,
       "feature_count": 31
     },
     "alands_landsbygd": {
-      "topojson_bytes": 324045,
-      "gzip_bytes": 95725,
+      "topojson_bytes": 324804,
+      "gzip_bytes": 95841,
       "feature_count": 18
     },
     "alands_skargard": {
-      "topojson_bytes": 353282,
-      "gzip_bytes": 101284,
+      "topojson_bytes": 353900,
+      "gzip_bytes": 101387,
       "feature_count": 13
     },
     "etela_pirkanmaa": {
-      "topojson_bytes": 45169,
-      "gzip_bytes": 15917,
+      "topojson_bytes": 46036,
+      "gzip_bytes": 16110,
       "feature_count": 22
     },
     "forssa": {
-      "topojson_bytes": 44003,
-      "gzip_bytes": 15597,
+      "topojson_bytes": 44867,
+      "gzip_bytes": 15761,
       "feature_count": 22
     },
     "haapavesi_siikalatva": {
-      "topojson_bytes": 35958,
-      "gzip_bytes": 12313,
+      "topojson_bytes": 36736,
+      "gzip_bytes": 12428,
       "feature_count": 19
     },
     "hameenlinna": {
-      "topojson_bytes": 83696,
-      "gzip_bytes": 27952,
+      "topojson_bytes": 85245,
+      "gzip_bytes": 28260,
       "feature_count": 44
     },
     "helsinki_metro": {
-      "topojson_bytes": 796357,
-      "gzip_bytes": 237915,
+      "topojson_bytes": 805968,
+      "gzip_bytes": 240323,
       "feature_count": 296
     },
     "imatra": {
-      "topojson_bytes": 94214,
-      "gzip_bytes": 28028,
+      "topojson_bytes": 95557,
+      "gzip_bytes": 28179,
       "feature_count": 37
     },
     "ita_lappi": {
-      "topojson_bytes": 196845,
-      "gzip_bytes": 39173,
+      "topojson_bytes": 199053,
+      "gzip_bytes": 39361,
       "feature_count": 62
     },
     "jakobstadsregionen": {
-      "topojson_bytes": 207159,
-      "gzip_bytes": 64004,
+      "topojson_bytes": 208356,
+      "gzip_bytes": 64206,
       "feature_count": 33
     },
     "jamsa": {
-      "topojson_bytes": 23785,
-      "gzip_bytes": 8950,
+      "topojson_bytes": 24256,
+      "gzip_bytes": 9060,
       "feature_count": 10
     },
     "jarviseutu": {
-      "topojson_bytes": 65959,
-      "gzip_bytes": 21422,
+      "topojson_bytes": 67352,
+      "gzip_bytes": 21568,
       "feature_count": 37
     },
     "joensuu": {
-      "topojson_bytes": 237860,
-      "gzip_bytes": 65654,
+      "topojson_bytes": 241762,
+      "gzip_bytes": 66103,
       "feature_count": 114
     },
     "joutsa": {
-      "topojson_bytes": 19149,
-      "gzip_bytes": 7257,
+      "topojson_bytes": 19554,
+      "gzip_bytes": 7359,
       "feature_count": 8
     },
     "jyvaskyla": {
-      "topojson_bytes": 130426,
-      "gzip_bytes": 42515,
+      "topojson_bytes": 132743,
+      "gzip_bytes": 42995,
       "feature_count": 68
     },
     "kajaani": {
-      "topojson_bytes": 68650,
-      "gzip_bytes": 22848,
+      "topojson_bytes": 69992,
+      "gzip_bytes": 23063,
       "feature_count": 37
     },
     "kaustinen": {
-      "topojson_bytes": 45673,
-      "gzip_bytes": 15610,
+      "topojson_bytes": 46638,
+      "gzip_bytes": 15750,
       "feature_count": 24
     },
     "kehys_kainuu": {
-      "topojson_bytes": 59887,
-      "gzip_bytes": 18350,
+      "topojson_bytes": 61117,
+      "gzip_bytes": 18490,
       "feature_count": 32
     },
     "kemi_tornio": {
-      "topojson_bytes": 151294,
-      "gzip_bytes": 46370,
+      "topojson_bytes": 153015,
+      "gzip_bytes": 46627,
       "feature_count": 48
     },
     "keski_karjala": {
-      "topojson_bytes": 58745,
-      "gzip_bytes": 19125,
+      "topojson_bytes": 59748,
+      "gzip_bytes": 19275,
       "feature_count": 26
     },
     "keuruu": {
-      "topojson_bytes": 24645,
-      "gzip_bytes": 8749,
+      "topojson_bytes": 25164,
+      "gzip_bytes": 8857,
       "feature_count": 11
     },
     "koillis_savo": {
-      "topojson_bytes": 32408,
-      "gzip_bytes": 11291,
+      "topojson_bytes": 33097,
+      "gzip_bytes": 11386,
       "feature_count": 16
     },
     "koillismaa": {
-      "topojson_bytes": 28682,
-      "gzip_bytes": 10247,
+      "topojson_bytes": 29237,
+      "gzip_bytes": 10362,
       "feature_count": 12
     },
     "kokkola": {
-      "topojson_bytes": 114589,
-      "gzip_bytes": 36651,
+      "topojson_bytes": 115523,
+      "gzip_bytes": 36805,
       "feature_count": 24
     },
     "kotka": {
-      "topojson_bytes": 324351,
-      "gzip_bytes": 95466,
+      "topojson_bytes": 326403,
+      "gzip_bytes": 95784,
       "feature_count": 59
     },
     "kouvola": {
-      "topojson_bytes": 90693,
-      "gzip_bytes": 28791,
+      "topojson_bytes": 92409,
+      "gzip_bytes": 29003,
       "feature_count": 49
     },
     "kuopio": {
-      "topojson_bytes": 134792,
-      "gzip_bytes": 42193,
+      "topojson_bytes": 137353,
+      "gzip_bytes": 42579,
       "feature_count": 73
     },
     "kuusiokunnat": {
-      "topojson_bytes": 63703,
-      "gzip_bytes": 20747,
+      "topojson_bytes": 64988,
+      "gzip_bytes": 20889,
       "feature_count": 34
     },
     "lahti": {
-      "topojson_bytes": 210691,
-      "gzip_bytes": 65094,
+      "topojson_bytes": 214615,
+      "gzip_bytes": 65721,
       "feature_count": 118
     },
     "lappeenranta": {
-      "topojson_bytes": 107579,
-      "gzip_bytes": 34636,
+      "topojson_bytes": 109463,
+      "gzip_bytes": 34945,
       "feature_count": 55
     },
     "loimaa": {
-      "topojson_bytes": 57042,
-      "gzip_bytes": 19680,
+      "topojson_bytes": 58170,
+      "gzip_bytes": 19851,
       "feature_count": 30
     },
     "lounais_pirkanmaa": {
-      "topojson_bytes": 47184,
-      "gzip_bytes": 16317,
+      "topojson_bytes": 48117,
+      "gzip_bytes": 16459,
       "feature_count": 24
     },
     "loviisa": {
-      "topojson_bytes": 183562,
-      "gzip_bytes": 58012,
+      "topojson_bytes": 184562,
+      "gzip_bytes": 58141,
       "feature_count": 26
     },
     "luoteis_pirkanmaa": {
-      "topojson_bytes": 34902,
-      "gzip_bytes": 12450,
+      "topojson_bytes": 35624,
+      "gzip_bytes": 12587,
       "feature_count": 17
     },
     "mariehamns_stad": {
-      "topojson_bytes": 9458,
-      "gzip_bytes": 4011,
+      "topojson_bytes": 9654,
+      "gzip_bytes": 4073,
       "feature_count": 1
     },
     "mikkeli": {
-      "topojson_bytes": 142224,
-      "gzip_bytes": 43981,
+      "topojson_bytes": 144827,
+      "gzip_bytes": 44290,
       "feature_count": 76
     },
     "nivala_haapajarvi": {
-      "topojson_bytes": 48951,
-      "gzip_bytes": 16814,
+      "topojson_bytes": 49966,
+      "gzip_bytes": 16979,
       "feature_count": 25
     },
     "oulu": {
-      "topojson_bytes": 181894,
-      "gzip_bytes": 55756,
+      "topojson_bytes": 183973,
+      "gzip_bytes": 56278,
       "feature_count": 60
     },
     "oulunkaari": {
-      "topojson_bytes": 106371,
-      "gzip_bytes": 31076,
+      "topojson_bytes": 108029,
+      "gzip_bytes": 31235,
       "feature_count": 45
     },
     "pieksamaki": {
-      "topojson_bytes": 62850,
-      "gzip_bytes": 20313,
+      "topojson_bytes": 64092,
+      "gzip_bytes": 20464,
       "feature_count": 33
     },
     "pielisen_karjala": {
-      "topojson_bytes": 89043,
-      "gzip_bytes": 23384,
+      "topojson_bytes": 90174,
+      "gzip_bytes": 23509,
       "feature_count": 29
     },
     "pohjois_lappi": {
-      "topojson_bytes": 104933,
-      "gzip_bytes": 30931,
+      "topojson_bytes": 106342,
+      "gzip_bytes": 31070,
       "feature_count": 38
     },
     "pohjois_satakunta": {
-      "topojson_bytes": 50345,
-      "gzip_bytes": 17169,
+      "topojson_bytes": 51316,
+      "gzip_bytes": 17310,
       "feature_count": 25
     },
     "pori": {
-      "topojson_bytes": 223407,
-      "gzip_bytes": 68582,
+      "topojson_bytes": 225609,
+      "gzip_bytes": 68976,
       "feature_count": 64
     },
     "porvoo": {
-      "topojson_bytes": 179136,
-      "gzip_bytes": 57471,
+      "topojson_bytes": 180466,
+      "gzip_bytes": 57661,
       "feature_count": 36
     },
     "raahe": {
-      "topojson_bytes": 89106,
-      "gzip_bytes": 28962,
+      "topojson_bytes": 90217,
+      "gzip_bytes": 29113,
       "feature_count": 29
     },
     "raasepori": {
-      "topojson_bytes": 461580,
-      "gzip_bytes": 136121,
+      "topojson_bytes": 462713,
+      "gzip_bytes": 136323,
       "feature_count": 31
     },
     "rauma": {
-      "topojson_bytes": 183811,
-      "gzip_bytes": 57611,
+      "topojson_bytes": 185442,
+      "gzip_bytes": 57822,
       "feature_count": 46
     },
     "riihimaki": {
-      "topojson_bytes": 46541,
-      "gzip_bytes": 16511,
+      "topojson_bytes": 47448,
+      "gzip_bytes": 16708,
       "feature_count": 23
     },
     "rovaniemi": {
-      "topojson_bytes": 98041,
-      "gzip_bytes": 29720,
+      "topojson_bytes": 99975,
+      "gzip_bytes": 29973,
       "feature_count": 55
     },
     "saarijarvi_viitasaari": {
-      "topojson_bytes": 94423,
-      "gzip_bytes": 28954,
+      "topojson_bytes": 96299,
+      "gzip_bytes": 29125,
       "feature_count": 52
     },
     "salo": {
-      "topojson_bytes": 145692,
-      "gzip_bytes": 45298,
+      "topojson_bytes": 147366,
+      "gzip_bytes": 45540,
       "feature_count": 48
     },
     "savonlinna": {
-      "topojson_bytes": 96244,
-      "gzip_bytes": 30611,
+      "topojson_bytes": 98035,
+      "gzip_bytes": 30850,
       "feature_count": 51
     },
     "se_almhult": {
@@ -637,73 +637,73 @@
       "feature_count": 19
     },
     "seinajoki": {
-      "topojson_bytes": 179505,
-      "gzip_bytes": 56062,
+      "topojson_bytes": 182743,
+      "gzip_bytes": 56410,
       "feature_count": 94
     },
     "sisa_savo": {
-      "topojson_bytes": 37319,
-      "gzip_bytes": 12958,
+      "topojson_bytes": 38061,
+      "gzip_bytes": 13087,
       "feature_count": 18
     },
     "suupohja": {
-      "topojson_bytes": 53686,
-      "gzip_bytes": 18401,
+      "topojson_bytes": 54741,
+      "gzip_bytes": 18535,
       "feature_count": 27
     },
     "sydosterbotten": {
-      "topojson_bytes": 152836,
-      "gzip_bytes": 48124,
+      "topojson_bytes": 153674,
+      "gzip_bytes": 48273,
       "feature_count": 22
     },
     "tampere": {
-      "topojson_bytes": 248089,
-      "gzip_bytes": 76841,
+      "topojson_bytes": 252614,
+      "gzip_bytes": 77744,
       "feature_count": 135
     },
     "torniolaakso": {
-      "topojson_bytes": 64364,
-      "gzip_bytes": 21098,
+      "topojson_bytes": 65343,
+      "gzip_bytes": 21205,
       "feature_count": 25
     },
     "tunturi_lappi": {
-      "topojson_bytes": 165834,
-      "gzip_bytes": 45928,
+      "topojson_bytes": 167621,
+      "gzip_bytes": 46097,
       "feature_count": 49
     },
     "turku": {
-      "topojson_bytes": 395239,
-      "gzip_bytes": 117401,
+      "topojson_bytes": 397477,
+      "gzip_bytes": 118060,
       "feature_count": 67
     },
     "vaasa": {
-      "topojson_bytes": 520238,
-      "gzip_bytes": 144606,
+      "topojson_bytes": 522534,
+      "gzip_bytes": 144944,
       "feature_count": 66
     },
     "vakka_suomi": {
-      "topojson_bytes": 328953,
-      "gzip_bytes": 97834,
+      "topojson_bytes": 329584,
+      "gzip_bytes": 97980,
       "feature_count": 15
     },
     "varkaus": {
-      "topojson_bytes": 73366,
-      "gzip_bytes": 23755,
+      "topojson_bytes": 74771,
+      "gzip_bytes": 23931,
       "feature_count": 39
     },
     "yla_pirkanmaa": {
-      "topojson_bytes": 59095,
-      "gzip_bytes": 19461,
+      "topojson_bytes": 60297,
+      "gzip_bytes": 19612,
       "feature_count": 32
     },
     "yla_savo": {
-      "topojson_bytes": 115036,
-      "gzip_bytes": 36033,
+      "topojson_bytes": 117251,
+      "gzip_bytes": 36273,
       "feature_count": 62
     },
     "ylivieska": {
-      "topojson_bytes": 86786,
-      "gzip_bytes": 28763,
+      "topojson_bytes": 87988,
+      "gzip_bytes": 28937,
       "feature_count": 31
     }
   }
