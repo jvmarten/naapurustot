@@ -187,7 +187,7 @@ pipeline handles the whole country as cheaply as one region. Differences from th
   as §3.2 first planned. DeSO polygons are cut to OSM's land polygons before
   simplifying (`scripts/se/clip_deso_land.py`), because SCB's run out to sea where
   Paavo's stop at the shore.
-- **Not yet:** Swedish ranking pages. (Region hubs landed in §18, kommun pages in §19, history in §16.)
+- **Not yet:** Swedish per-metric ranking pages. (Region hubs landed in §18, kommun pages in §19, history in §16; best-neighbourhoods pages — Sweden and each kommun with five or more DeSOs, at `/parhaat-asuinalueet/` — in `prerender-hubs.mjs`, using the map's calibrated quality index.)
 
 ## 8. Quality index for Sweden (2026-10-27)
 

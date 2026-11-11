@@ -34,6 +34,7 @@ import { assertHeadIntegrity } from './prerender-lib.mjs';
 // imports → Node's TypeScript stripping (22.18+/24) loads them without a build.
 import { computeQualityIndices } from '../src/utils/qualityIndex.ts';
 import { computeChangeMetrics, computeQuickWinMetrics } from '../src/utils/metrics.ts';
+import { decodeColumnar } from './lib/columnar.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -71,6 +72,48 @@ const geojson = JSON.parse(readFileSync(GEOJSON_PATH, 'utf-8'));
 computeQualityIndices(geojson.features);
 computeChangeMetrics(geojson.features);
 computeQuickWinMetrics(geojson.features);
+
+// The quality index THE MAP shows. The calls above score the GeoJSON against itself, but
+// the app's default view scores every area against its country's national ranges
+// (national_ranges.json, winsorized) and calibrates Sweden onto Finland's scale
+// (getCountryRanges). A ranking page saying "Punavuori 66" while the map one click away
+// shows Paloheinä on top would contradict itself, so the hub pages use the map's score:
+// computed here exactly as the runtime does, over the same region_properties.json rows.
+const MAP_QUALITY = (() => {
+  const rows = decodeColumnar(JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'region_properties.json'), 'utf-8')));
+  const rf = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'national_ranges.json'), 'utf-8'));
+  const toMap = (raw) => new Map(Object.entries(raw ?? {}).map(([k, r]) => [k, { min: r.min, max: r.max, avg: r.avg }]));
+  const ranges = { fi: toMap(rf.ranges), calibration: rf.calibration };
+  for (const [c, v] of Object.entries(rf.countries ?? {})) ranges[c] = toMap(v.ranges);
+  const feats = rows.map((properties) => ({ type: 'Feature', properties: { ...properties }, geometry: null }));
+  computeQualityIndices(feats, undefined, ranges);
+  return new Map(feats.map((f) => [String(f.properties.pno), f.properties.quality_index ?? null]));
+})();
+/** Overwrite each feature's quality_index with the map's (null where the map has none). */
+function applyMapQuality(features) {
+  for (const f of features) f.properties.quality_index = MAP_QUALITY.get(String(f.properties.pno)) ?? null;
+}
+applyMapQuality(geojson.features);
+// Swedish names of Finnish municipalities (Helsinki → Helsingfors), from Statistics Finland's
+// municipality classification (scripts/fetch_fi_municipality_names.mjs), keyed by kunta code.
+// Swedish-language pages name a municipality by its Swedish name; URLs and lookups keep the
+// Finnish one.
+const FI_MUNI_SV = (() => {
+  const byCode = JSON.parse(readFileSync(join(ROOT, 'scripts', 'fi_municipality_names_sv.json'), 'utf-8')).names;
+  const out = new Map();
+  for (const f of geojson.features) {
+    const p = f.properties;
+    if (!p?.municipality || p.kunta == null) continue;
+    const sv = byCode[String(p.kunta).padStart(3, '0')];
+    if (sv) out.set(String(p.municipality), sv);
+  }
+  return out;
+})();
+/** A Finnish municipality's name in `lang`: Swedish pages use its Swedish name. */
+function muniName(name, lang) {
+  return lang === 'sv' ? FI_MUNI_SV.get(name) ?? name : name;
+}
+
 // CF-11b: data-source registry, for the Dataset JSON-LD on hub pages.
 const REGISTRY = JSON.parse(readFileSync(join(ROOT, 'src', 'data', 'data_sources.json'), 'utf-8'));
 // PO-4: dataset build date drives the citation year (the data vintage, not page age).
@@ -178,7 +221,9 @@ const safeJson = (obj) => JSON.stringify(obj).replace(/</g, '\\u003c');
 /** What the Swedish hubs borrow from this file (a function: some of it is defined below). */
 function seHubHelpers() {
   return { escapeHtml, fmtNum, getRegionName, toSlug, htmlPage, safeJson, cityUrl, dirUrl,
-    muniUrl, LOCALES, LOCALE_TAG, ORIGIN, TEXT, AREA_PREFIX, CITY_PREFIX, DIRECTORY_PATH, MUNI_PREFIX };
+    muniUrl, LOCALES, LOCALE_TAG, ORIGIN, TEXT, AREA_PREFIX, CITY_PREFIX, DIRECTORY_PATH, MUNI_PREFIX,
+    bestRegionNav: (region, lang) => buildRegionBestNav(region, lang, seBestScopes, seBestScopeByName, 'se'),
+    bestLink: (name, lang) => buildBestLink(name, lang, seBestScopeByName, 'se') };
 }
 
 // CF-11b: localized Dataset name/description for the hub-page Dataset JSON-LD.
@@ -604,6 +649,7 @@ const regions = [...byRegion.entries()]
 
 // Sweden's FA25 regions get hub pages too (prerender-hubs-se.mjs): region hubs only.
 const seRegions = loadSeRegions(ROOT);
+for (const r of seRegions) applyMapQuality(r.features);
 
 const TOTAL_AREAS = regions.reduce((s, r) => s + r.count, 0);
 const TOTAL_POP = regions.reduce((s, r) => s + r.totalPop, 0);
@@ -872,7 +918,7 @@ function buildRankingPage(metric, lang, scope, ranked) {
   const label = metric.label[lang];
   const national = !scope;
   const isMuni = !!scope && scope.kind === 'muni';
-  const locationName = national ? '' : (isMuni ? scope.name : getRegionName(scope.id, lang));
+  const locationName = national ? '' : (isMuni ? muniName(scope.name, lang) : getRegionName(scope.id, lang));
   const alternates = rankAlternates(metric.slug, scope);
   const reg = REGISTRY.metrics?.[metric.property] ?? {};
 
@@ -905,7 +951,7 @@ function buildRankingPage(metric, lang, scope, ranked) {
     crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumbBest)}</p>`;
   } else if (isMuni) {
     const regionName = getRegionName(scope.regionId, lang);
-    crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(scope.regionId)}/">${escapeHtml(regionName)}</a> / <a href="${muniPath(scope.slug, lang)}">${escapeHtml(scope.name)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
+    crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(scope.regionId)}/">${escapeHtml(regionName)}</a> / <a href="${muniPath(scope.slug, lang)}">${escapeHtml(locationName)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
   } else {
     crumbs = `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.crumbAll)}</a> / <a href="${CITY_PREFIX[lang]}/${escapeHtml(scope.id)}/">${escapeHtml(locationName)}</a> / ${escapeHtml(T.crumbBest)}</p>`;
   }
@@ -966,7 +1012,7 @@ ${rows}
       { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
       { '@type': 'ListItem', position: 2, name: T.crumbAll, item: dirUrl(lang) },
       { '@type': 'ListItem', position: 3, name: getRegionName(scope.regionId, lang), item: cityUrl(scope.regionId, lang) },
-      { '@type': 'ListItem', position: 4, name: scope.name, item: muniUrl(scope.slug, lang) },
+      { '@type': 'ListItem', position: 4, name: locationName, item: muniUrl(scope.slug, lang) },
       { '@type': 'ListItem', position: 5, name: T.crumbBest },
     ];
   } else {
@@ -1174,15 +1220,142 @@ const BEST_TEXT = {
 const QI_METRIC = RANKING_METRICS.find((m) => m.slug === 'quality-index');
 const BEST_SIDE_METRICS = BEST_SIDE_SLUGS.map((s) => RANKING_METRICS.find((m) => m.slug === s));
 
+// Sweden's pages: the same layout over SCB's figures. What differs is a table — the area
+// code (DeSO, not a postal code), the income column (SCB's median economic standard), the
+// families measure (households with children under 25 living at home, SCB's definition;
+// Finland's is the share of children 0–6) and the prose naming the sources. No Swedish
+// per-metric ranking pages exist, so the side lists carry no "full list" link.
+const SE_SIDE_METRICS = [
+  { slug: 'families', property: 'families_with_children_pct', higherIsBetter: true, fmt: (v, lang) => `${fmtDec(v, lang, 1)} %` },
+  { slug: 'transit', property: 'transit_stop_density', higherIsBetter: true, fmt: (v, lang) => fmtFineDensity(v, lang) },
+  { slug: 'walkability', property: 'walkability_index', higherIsBetter: true, fmt: (v, lang) => fmtNum(Math.round(v), lang) },
+];
+// Finnish exonyms where Finnish has one in everyday use, for the Finnish-language pages.
+const SE_FI_NAME = { Stockholm: 'Tukholma' };
+const SE_FI_GENITIVE = { Tukholma: 'Tukholman', Göteborg: 'Göteborgin', Malmö: 'Malmön', Uppsala: 'Uppsalan' };
+
+const BEST_SE_TEXT = {
+  fi: {
+    country: 'Ruotsi',
+    best: (place) => !place ? 'Ruotsin parhaat asuinalueet'
+      : SE_FI_GENITIVE[place] ? `${SE_FI_GENITIVE[place]} parhaat asuinalueet` : `Parhaat asuinalueet kunnassa ${place}`,
+    bestLower: (place) => !place ? 'Ruotsin parhaat asuinalueet'
+      : SE_FI_GENITIVE[place] ? `${SE_FI_GENITIVE[place]} parhaat asuinalueet` : `parhaat asuinalueet kunnassa ${place}`,
+    qBest: (place) => !place ? 'Mikä on Ruotsin paras asuinalue?'
+      : SE_FI_GENITIVE[place] ? `Mikä on ${SE_FI_GENITIVE[place]} paras asuinalue?` : `Mikä on paras asuinalue kunnassa ${place}?`,
+    qFamilies: (place) => !place ? 'Millä Ruotsin asuinalueilla on eniten lapsiperheitä?'
+      : SE_FI_GENITIVE[place] ? `Millä ${SE_FI_GENITIVE[place]} asuinalueella asuu eniten lapsiperheitä?` : `Millä asuinalueella kunnassa ${place} asuu eniten lapsiperheitä?`,
+    scope: (n) => `Vertailussa on ${n} DeSO-tilastoaluetta. Luvut ovat Ruotsin tilastokeskuksen SCB:n ja muiden avoimien julkisten lähteiden dataa – laskentatapa on kerrottu alempana.`,
+    method: (n) => `Laatuindeksi (0–100) yhdistää neljä asiaa: turvallisuuden, terveellisen ja rauhallisen ympäristön (ilmanlaatu, puusto, melu, vesistöt), työn ja toimeentulon sekä arjen sujuvuuden (käveltävyys, joukkoliikenne, palvelut). Ruotsin alueet pisteytetään Ruotsin omaa vaihteluväliä vasten ja sovitetaan sitten Suomen asteikolle, joten pisteet ovat vertailukelpoisia rajan yli. Vertailussa on ${n} DeSO-tilastoaluetta; lähteet ovat SCB, Brå, Trafikanalys, EEA, Copernicus ja OpenStreetMap.`,
+    tableCaption: (place) => `${BEST_SE_TEXT.fi.best(place)} laatuindeksillä`,
+    colCode: 'DeSO-koodi', colIncome: 'Taloudellinen standardi (mediaani)',
+    side: {
+      families: 'Lapsiperheille – suurin lapsiperheiden osuus kotitalouksista',
+      transit: 'Joukkoliikenne – tihein pysäkkiverkko',
+      walkability: 'Käveltävyys – korkein käveltävyysindeksi',
+    },
+    aFamilies: (name, code, v) => `Lapsiperheiden osuus kotitalouksista on suurin alueella ${name} (${code}): ${v}. SCB laskee lapsiksi kotona asuvat alle 25-vuotiaat.`,
+    muniHeading: 'Parhaat asuinalueet kunnittain',
+    countryLink: 'Ruotsin parhaat asuinalueet →',
+    footer: 'Tiedot: Statistiska centralbyrån (SCB), Brå, Trafikanalys, EEA, Copernicus, OpenStreetMap ja muut avoimet julkiset lähteet.',
+  },
+  en: {
+    country: 'Sweden',
+    best: (place) => `Best neighbourhoods in ${place || 'Sweden'}`,
+    bestLower: (place) => `the best neighbourhoods in ${place || 'Sweden'}`,
+    qBest: (place) => `What is the best neighbourhood in ${place || 'Sweden'}?`,
+    qFamilies: (place) => place ? `Which neighbourhood in ${place} has the most families with children?` : 'Which neighbourhoods in Sweden have the most families with children?',
+    scope: (n) => `${n} DeSO statistical areas are compared. The figures are open public data from Statistics Sweden (SCB) and other sources – the method is explained below.`,
+    method: (n) => `The quality index (0–100) combines four things: safety, a healthy and calm environment (air quality, tree canopy, noise, water), work and livelihood, and everyday ease (walkability, public transport, services). Swedish areas are scored against Sweden's own spread and then calibrated onto the Finnish scale, so scores compare across the border. ${n} DeSO statistical areas are compared; sources are SCB, Brå, Trafikanalys, the EEA, Copernicus and OpenStreetMap.`,
+    tableCaption: (place) => `Best DeSO areas in ${place || 'Sweden'} by quality index`,
+    colCode: 'DeSO code', colIncome: 'Economic standard (median)',
+    side: {
+      families: 'Families – highest share of households with children',
+      transit: 'Public transport – densest stop network',
+      walkability: 'Walkability – highest walkability index',
+    },
+    aFamilies: (name, code, v) => `The share of households with children is highest in ${name} (${code}): ${v}. SCB counts children under 25 living at home.`,
+    muniHeading: 'Best neighbourhoods by municipality',
+    countryLink: 'Best neighbourhoods in Sweden →',
+    footer: 'Data: Statistics Sweden (SCB), Brå, Trafikanalys, EEA, Copernicus, OpenStreetMap and other open public sources.',
+  },
+  sv: {
+    country: 'Sverige',
+    best: (place) => `Bästa bostadsområdena i ${place || 'Sverige'}`,
+    bestLower: (place) => `de bästa bostadsområdena i ${place || 'Sverige'}`,
+    qBest: (place) => `Vilket är det bästa bostadsområdet i ${place || 'Sverige'}?`,
+    qFamilies: (place) => place ? `Vilket bostadsområde i ${place} har flest barnfamiljer?` : 'Vilka bostadsområden i Sverige har flest barnfamiljer?',
+    scope: (n) => `${n} DeSO-områden jämförs. Siffrorna är öppna offentliga data från Statistiska centralbyrån (SCB) och andra källor – beräkningen förklaras nedan.`,
+    method: (n) => `Kvalitetsindexet (0–100) kombinerar fyra saker: säkerhet, en hälsosam och lugn miljö (luftkvalitet, trädtäckning, buller, vatten), arbete och försörjning samt vardagens smidighet (gångvänlighet, kollektivtrafik, service). Svenska områden poängsätts mot Sveriges egen spridning och kalibreras sedan till den finländska skalan, så att poängen går att jämföra över gränsen. ${n} DeSO-områden jämförs; källorna är SCB, Brå, Trafikanalys, EEA, Copernicus och OpenStreetMap.`,
+    tableCaption: (place) => `Bästa DeSO-områdena i ${place || 'Sverige'} enligt kvalitetsindex`,
+    colCode: 'DeSO-kod', colIncome: 'Ekonomisk standard (median)',
+    side: {
+      families: 'Barnfamiljer – största andelen hushåll med barn',
+      transit: 'Kollektivtrafik – tätast hållplatsnät',
+      walkability: 'Gångvänlighet – högst gångvänlighetsindex',
+    },
+    aFamilies: (name, code, v) => `Andelen hushåll med barn är störst i ${name} (${code}): ${v}. SCB räknar hemmaboende barn under 25 år.`,
+    muniHeading: 'Bästa bostadsområdena per kommun',
+    countryLink: 'Bästa bostadsområdena i Sverige →',
+    footer: 'Data: Statistiska centralbyrån (SCB), Brå, Trafikanalys, EEA, Copernicus, OpenStreetMap och andra öppna offentliga källor.',
+  },
+};
+
+function C_SE_LEAD(lang, place, top) {
+  const b = BEST_SE_TEXT[lang].bestLower(place);
+  return lang === 'fi' ? `naapurustot.fi:n laatuindeksin mukaan ${b} ovat ${top}.`
+    : lang === 'en' ? `By the naapurustot.fi quality index, ${b} are ${top}.`
+    : `Enligt naapurustot.fi:s kvalitetsindex är ${b} ${top}.`;
+}
+
 /**
- * Build one "parhaat asuinalueet" page. `scope` is null (Finland) or a best-scope:
- * { name, slug, regionId, features, hubPath(lang), rankPathFor(metric, lang) | null }.
+ * Per-country page config. `scopes` is read lazily (the scope lists are built further down).
+ * The two countries' pages share one builder; nothing here puts a Swedish figure on a
+ * Finnish scale except the quality index, which the map itself calibrates.
  */
-function buildBestPage(lang, scope, features, ranked, rankableCount) {
-  const T = BEST_TEXT[lang];
-  const place = scope ? scope.name : null;
+const BEST_COUNTRY = {
+  fi: {
+    slug: null,
+    mapCity: 'fi',
+    text: (lang) => BEST_TEXT[lang],
+    side: BEST_SIDE_METRICS,
+    codeCol: (lang) => TEXT[lang].colPostal,
+    incomeCol: (lang) => TEXT[lang].colIncome,
+    income: (p, lang) => (typeof p.hr_mtu === 'number' && p.hr_mtu > 0 ? `${fmtNum(Math.round(p.hr_mtu), lang)} €` : null),
+    scopes: () => bestScopes,
+    fullList: (scope, metric, lang) => (scope ? scope.rankPathFor(metric, lang) : rankPath(metric.slug, null, lang)),
+  },
+  se: {
+    slug: 'sverige',
+    mapCity: 'se',
+    text: (lang) => ({ ...BEST_TEXT[lang], ...BEST_SE_TEXT[lang],
+      lead: (place, top) => C_SE_LEAD(lang, place, top),
+      aMethod: (n) => BEST_SE_TEXT[lang].method(n),
+      desc: (place, top) => C_SE_LEAD(lang, place, top),
+      unit: { transit: BEST_TEXT[lang].unit.transit },
+    }),
+    side: SE_SIDE_METRICS,
+    codeCol: (lang) => BEST_SE_TEXT[lang].colCode,
+    incomeCol: (lang) => BEST_SE_TEXT[lang].colIncome,
+    income: (p, lang) => (typeof p.economic_standard_median === 'number' && p.economic_standard_median > 0 ? `${fmtNum(p.economic_standard_median, lang)} kr` : null),
+    scopes: () => seBestScopes,
+    fullList: () => null,
+    footer: (lang) => BEST_SE_TEXT[lang].footer,
+    rights: 'Data: Statistics Sweden (SCB), CC0, and other public sources',
+  },
+};
+
+/**
+ * Build one "parhaat asuinalueet" page. `scope` is null (the country) or a best-scope:
+ * { name, label(lang), slug, regionId, features, hubPath(lang), rankPathFor(metric, lang) }.
+ */
+function buildBestPage(lang, countryId, scope, features, ranked, rankableCount) {
+  const C = BEST_COUNTRY[countryId];
+  const T = C.text(lang);
+  const place = scope ? scope.label(lang) : null;
   const national = !scope;
-  const alternates = bestAlternates(scope ? scope.slug : null);
+  const countryPath = bestPath(C.slug, lang);
+  const alternates = bestAlternates(scope ? scope.slug : C.slug);
   const canonical = alternates[lang];
   const heading = T.best(place);
   const qi = (f) => QI_METRIC.fmt(Number(f.properties.quality_index), lang);
@@ -1190,12 +1363,13 @@ function buildBestPage(lang, scope, features, ranked, rankableCount) {
   const topNames = joinNames(ranked.slice(0, 3).map((f) => `${nameOf(f)} (${f.properties.pno})`), lang);
   const popFloor = fmtNum(MIN_RANKED_POPULATION, lang);
   const areaHref = (f) => `${AREA_PREFIX[lang]}/${escapeHtml(toSlug(f.properties.pno, f.properties.nimi))}/`;
+  const muniLabelOf = (p) => (countryId === 'fi' ? muniName(p.municipality || '', lang) : seMuniLabel(p.municipality || '', lang));
 
   const muniCol = national ? `<th scope="col">${escapeHtml(T.colMuni)}</th>` : '';
   const rows = ranked.map((f, i) => {
     const p = f.properties;
-    const income = typeof p.hr_mtu === 'number' && p.hr_mtu > 0 ? `${fmtNum(Math.round(p.hr_mtu), lang)} €` : TEXT[lang].missing;
-    const muniCell = national ? `<td>${escapeHtml(p.municipality || '')}</td>` : '';
+    const income = C.income(p, lang) ?? TEXT[lang].missing;
+    const muniCell = national ? `<td>${escapeHtml(muniLabelOf(p))}</td>` : '';
     return `        <tr><td class="num">${i + 1}</td><td><a href="${areaHref(f)}">${escapeHtml(nameOf(f))}</a></td>` +
       `<td>${escapeHtml(p.pno)}</td>${muniCell}<td class="num">${escapeHtml(fmtNum(Math.round(p.he_vakiy), lang))}</td>` +
       `<td class="num">${escapeHtml(income)}</td><td class="num">${escapeHtml(qi(f))}</td></tr>`;
@@ -1204,10 +1378,10 @@ function buildBestPage(lang, scope, features, ranked, rankableCount) {
   // Short lists for the other things people choose a neighbourhood by — only where the
   // scope has a real spread of values to rank.
   const sides = [];
-  for (const metric of BEST_SIDE_METRICS) {
+  for (const metric of C.side) {
     if (!hasRankableSpread(features, metric, BEST_MIN_RANKED)) continue;
     const top = rankFeatures(features, metric, BEST_SIDE_TOP_N);
-    const href = national ? rankPath(metric.slug, null, lang) : scope.rankPathFor(metric, lang);
+    const href = C.fullList(scope, metric, lang);
     const items = top.map((f) => `<li><a href="${areaHref(f)}">${escapeHtml(nameOf(f))}</a> <span class="muted">${escapeHtml(f.properties.pno)} · ${escapeHtml(metric.fmt(Number(f.properties[metric.property]), lang) + (T.unit[metric.slug] || ''))}</span></li>`).join('');
     sides.push({ metric, top, html: `      <h3>${escapeHtml(T.side[metric.slug])}</h3>\n      <ul>${items}</ul>${href ? `\n      <p><a href="${href}">${escapeHtml(T.fullList)}</a></p>` : ''}` });
   }
@@ -1216,7 +1390,7 @@ function buildBestPage(lang, scope, features, ranked, rankableCount) {
   const first = ranked[0];
   const second = joinNames(ranked.slice(1, 3).map((f) => `${nameOf(f)} (${f.properties.pno})`), lang);
   const faqs = [{ q: T.qBest(place), a: T.aBest(nameOf(first), first.properties.pno, qi(first), second) }];
-  const fam = sides.find((s) => s.metric.slug === 'families');
+  const fam = sides.find((x) => x.metric.slug === 'families');
   if (fam) {
     const f = fam.top[0];
     faqs.push({ q: T.qFamilies(place), a: T.aFamilies(nameOf(f), f.properties.pno, fam.metric.fmt(Number(f.properties[fam.metric.property]), lang)) });
@@ -1224,17 +1398,21 @@ function buildBestPage(lang, scope, features, ranked, rankableCount) {
   faqs.push({ q: T.qMethod, a: T.aMethod(fmtNum(rankableCount, lang), popFloor) });
   const faqHtml = faqs.map((x) => `      <h3>${escapeHtml(x.q)}</h3>\n      <p>${escapeHtml(x.a)}</p>`).join('\n');
 
-  const mapHref = national
-    ? '/?city=fi&amp;layer=quality_index'
-    : `/?city=${escapeHtml(scope.regionId)}&amp;layer=quality_index`;
-  const crumbs = national
+  const mapHref = `/?city=${escapeHtml(national ? C.mapCity : scope.regionId)}&amp;layer=quality_index`;
+  // Finland's national page is the family's root; Sweden's sits under it.
+  const rootCrumb = `<a href="${bestPath(null, lang)}">${escapeHtml(BEST_TEXT[lang].crumb)}</a>`;
+  const countryCrumb = countryId === 'fi' ? '' : (national ? ` / ${escapeHtml(T.country)}` : ` / <a href="${countryPath}">${escapeHtml(T.country)}</a>`);
+  const crumbs = national && countryId === 'fi'
     ? `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${escapeHtml(T.crumb)}</p>`
-    : `<p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${bestPath(null, lang)}">${escapeHtml(T.crumb)}</a> / ${escapeHtml(place)}</p>`;
+    : `<p class="crumbs"><a href="/">naapurustot.fi</a> / ${rootCrumb}${countryCrumb}${national ? '' : ` / ${escapeHtml(place)}`}</p>`;
 
-  // National page: an index of every municipality page (the internal-link hub for the family).
+  // A country page indexes every municipality page (the internal-link hub for the family);
+  // Finland's also links Sweden's.
+  const scopes = C.scopes();
   const muniIndex = national
-    ? `      <h2>${escapeHtml(T.muniHeading)}</h2>\n      <p>${bestScopes.map((s) => `<a href="${bestPath(s.slug, lang)}">${escapeHtml(s.name)}</a>`).join(' · ')}</p>`
-    : `      <p><a href="${scope.hubPath(lang)}">${escapeHtml(T.hubLink(place))}</a> · <a href="${bestPath(null, lang)}">${escapeHtml(T.best(null))} →</a></p>`;
+    ? `      <h2>${escapeHtml(T.muniHeading)}</h2>\n      <p>${scopes.map((x) => `<a href="${bestPath(x.slug, lang)}">${escapeHtml(x.label(lang))}</a>`).join(' · ')}</p>` +
+      (countryId === 'fi' && seBestScopes.length ? `\n      <p><a href="${bestPath(BEST_COUNTRY.se.slug, lang)}">${escapeHtml(BEST_SE_TEXT[lang].countryLink)}</a></p>` : '')
+    : `      <p><a href="${scope.hubPath(lang)}">${escapeHtml(T.hubLink(place))}</a> · <a href="${countryPath}">${escapeHtml(T.best(null))} →</a></p>`;
 
   const body = `      ${crumbs}
       <h1>${escapeHtml(heading)}</h1>
@@ -1242,13 +1420,13 @@ function buildBestPage(lang, scope, features, ranked, rankableCount) {
       <p>${escapeHtml(T.scope(fmtNum(rankableCount, lang), popFloor))}</p>
       <table>
         <caption>${escapeHtml(T.tableCaption(place))}</caption>
-        <thead><tr><th scope="col" class="num">${escapeHtml(RANK_TEXT[lang].colRank)}</th><th scope="col">${escapeHtml(RANK_TEXT[lang].colArea)}</th><th scope="col">${escapeHtml(TEXT[lang].colPostal)}</th>${muniCol}<th scope="col" class="num">${escapeHtml(TEXT[lang].colPopulation)}</th><th scope="col" class="num">${escapeHtml(TEXT[lang].colIncome)}</th><th scope="col" class="num">${escapeHtml(T.colIndex)}</th></tr></thead>
+        <thead><tr><th scope="col" class="num">${escapeHtml(RANK_TEXT[lang].colRank)}</th><th scope="col">${escapeHtml(RANK_TEXT[lang].colArea)}</th><th scope="col">${escapeHtml(C.codeCol(lang))}</th>${muniCol}<th scope="col" class="num">${escapeHtml(TEXT[lang].colPopulation)}</th><th scope="col" class="num">${escapeHtml(C.incomeCol(lang))}</th><th scope="col" class="num">${escapeHtml(T.colIndex)}</th></tr></thead>
         <tbody>
 ${rows}
         </tbody>
       </table>
       <p><a class="cta" href="${mapHref}">${escapeHtml(T.mapCta(place))}</a></p>
-${sides.length ? `      <h2>${escapeHtml(T.sideHeading)}</h2>\n${sides.map((s) => s.html).join('\n')}\n` : ''}      <h2>${escapeHtml(T.faqHeading)}</h2>
+${sides.length ? `      <h2>${escapeHtml(T.sideHeading)}</h2>\n${sides.map((x) => x.html).join('\n')}\n` : ''}      <h2>${escapeHtml(T.faqHeading)}</h2>
 ${faqHtml}
 ${muniIndex}
 ${buildCiteSection(lang, T.title(heading, CITE_YEAR), canonical)}`;
@@ -1265,16 +1443,14 @@ ${buildCiteSection(lang, T.title(heading, CITE_YEAR), canonical)}`;
       url: `${ORIGIN}${AREA_PREFIX[lang]}/${toSlug(f.properties.pno, f.properties.nimi)}/`,
     })),
   };
-  const crumbList = national
-    ? [
-        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
-        { '@type': 'ListItem', position: 2, name: T.crumb },
-      ]
-    : [
-        { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
-        { '@type': 'ListItem', position: 2, name: T.crumb, item: bestUrl(null, lang) },
-        { '@type': 'ListItem', position: 3, name: place },
-      ];
+  const crumbList = [{ '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` }];
+  if (countryId === 'fi') {
+    crumbList.push(national ? { '@type': 'ListItem', position: 2, name: T.crumb } : { '@type': 'ListItem', position: 2, name: T.crumb, item: bestUrl(null, lang) });
+  } else {
+    crumbList.push({ '@type': 'ListItem', position: 2, name: BEST_TEXT[lang].crumb, item: bestUrl(null, lang) });
+    crumbList.push(national ? { '@type': 'ListItem', position: 3, name: T.country } : { '@type': 'ListItem', position: 3, name: T.country, item: bestUrl(C.slug, lang) });
+  }
+  if (!national) crumbList.push({ '@type': 'ListItem', position: crumbList.length + 1, name: place });
   const breadcrumb = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbList };
   const faq = {
     '@context': 'https://schema.org',
@@ -1294,23 +1470,31 @@ ${buildCiteSection(lang, T.title(heading, CITE_YEAR), canonical)}`;
     jsonLd,
     body,
     expectFaq: true,
+    footer: C.footer?.(lang),
+    rights: C.rights,
   });
 }
 
-/** Link to a municipality's "parhaat asuinalueet" page, for hubs (empty when it has none). */
-function buildBestLink(muniName, lang) {
-  const s = bestScopeByName.get(muniName);
+/** A Swedish kommun's name in `lang` (Finnish pages use a Finnish exonym where one exists). */
+function seMuniLabel(name, lang) {
+  return lang === 'fi' ? SE_FI_NAME[name] ?? name : name;
+}
+
+/** Link to a municipality's "parhaat asuinalueet" page, for hubs (empty when it has none).
+ *  `byName` is the country's scope index, keyed by the municipality's own name. */
+function buildBestLink(key, lang, byName = bestScopeByName, countryId = 'fi') {
+  const s = byName.get(key);
   if (!s) return '';
-  return `      <p><a href="${bestPath(s.slug, lang)}">${escapeHtml(BEST_TEXT[lang].best(s.name))} →</a></p>`;
+  return `      <p><a href="${bestPath(s.slug, lang)}">${escapeHtml(BEST_COUNTRY[countryId].text(lang).best(s.label(lang)))} →</a></p>`;
 }
 
 /** Region hub → its municipalities' "parhaat asuinalueet" pages. */
-function buildRegionBestNav(region, lang) {
-  const list = bestScopes.filter((s) => s.regionId === region.id);
+function buildRegionBestNav(region, lang, scopes = bestScopes, byName = bestScopeByName, countryId = 'fi') {
+  const list = scopes.filter((s) => s.regionId === region.id);
   if (list.length === 0) return '';
-  if (list.length === 1) return buildBestLink(list[0].name, lang);
-  const links = list.map((s) => `<a href="${bestPath(s.slug, lang)}">${escapeHtml(s.name)}</a>`).join(' · ');
-  return `      <h2>${escapeHtml(BEST_TEXT[lang].muniHeading)}</h2>\n      <p>${links}</p>`;
+  if (list.length === 1) return buildBestLink(list[0].name, lang, byName, countryId);
+  const links = list.map((s) => `<a href="${bestPath(s.slug, lang)}">${escapeHtml(s.label(lang))}</a>`).join(' · ');
+  return `      <h2>${escapeHtml(BEST_COUNTRY[countryId].text(lang).muniHeading)}</h2>\n      <p>${links}</p>`;
 }
 
 // --- Directory page ---
@@ -1523,6 +1707,7 @@ const MUNI_TEXT = {
 };
 
 function buildMunicipalityHub(muni, lang) {
+  const muniLabel = muniName(muni.name, lang);
   const T = TEXT[lang];
   const M = MUNI_TEXT[lang];
   const regionName = getRegionName(muni.regionId, lang);
@@ -1545,18 +1730,18 @@ function buildMunicipalityHub(muni, lang) {
       `<td class="num">${income}</td></tr>`;
   }).join('\n');
 
-  const muniEsc = escapeHtml(muni.name);
+  const muniEsc = escapeHtml(muniLabel);
   const regionEsc = escapeHtml(regionName);
   const regionHref = `${CITY_PREFIX[lang]}/${escapeHtml(muni.regionId)}/`;
   const body = `      <p class="crumbs"><a href="/">naapurustot.fi</a> / <a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.dirCrumb)}</a> / <a href="${regionHref}">${regionEsc}</a> / ${muniEsc}</p>
       <h1>${muniEsc}</h1>
-      <p class="lead">${escapeHtml(M.intro(muni.name, muni.count, fmtNum(muni.totalPop, lang)))}</p>
+      <p class="lead">${escapeHtml(M.intro(muniLabel, muni.count, fmtNum(muni.totalPop, lang)))}</p>
       <p class="summary"><span>${escapeHtml(T.citySummary(fmtNum(muni.count, lang), fmtNum(muni.totalPop, lang)))}</span></p>
-      <p><a class="cta" href="/?pno=${escapeHtml(String(sorted[0].properties.pno))}">${escapeHtml(M.mapCta(muni.name))}</a></p>
+      <p><a class="cta" href="/?pno=${escapeHtml(String(sorted[0].properties.pno))}">${escapeHtml(M.mapCta(muniLabel))}</a></p>
       <p>${escapeHtml(M.regionLabel)}: <a href="${regionHref}">${regionEsc}</a></p>
       <h2>${escapeHtml(T.cityAreasHeading)}</h2>
       <table>
-        <caption>${escapeHtml(M.tableCaption(muni.name))}</caption>
+        <caption>${escapeHtml(M.tableCaption(muniLabel))}</caption>
         <thead><tr><th scope="col">${escapeHtml(T.colArea)}</th><th scope="col">${escapeHtml(T.colPostal)}</th><th scope="col" class="num">${escapeHtml(T.colPopulation)}</th><th scope="col" class="num">${escapeHtml(T.colIncome)}</th></tr></thead>
         <tbody>
 ${rows}
@@ -1566,21 +1751,21 @@ ${buildBestLink(muni.name, lang)}
 ${buildBestAreasNav({ kind: 'muni', slug: muni.slug, rankings: muni.rankings }, lang)}
 ${buildCompareNav(muni, lang)}
 ${buildMuniPlanningNav(muni, lang)}
-${buildCiteSection(lang, M.title(muni.name), alternates[lang])}
+${buildCiteSection(lang, M.title(muniLabel), alternates[lang])}
       <p><a href="${DIRECTORY_PATH[lang]}">${escapeHtml(T.backToDir)}</a></p>`;
 
   const collection = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: muni.name,
-    description: M.desc(muni.name, muni.count),
+    name: muniLabel,
+    description: M.desc(muniLabel, muni.count),
     url: alternates[lang],
     inLanguage: lang,
     isPartOf: { '@type': 'WebSite', name: 'naapurustot.fi', url: ORIGIN },
     about: {
       '@type': 'Place',
-      name: muni.name,
-      address: { '@type': 'PostalAddress', addressLocality: muni.name, addressCountry: 'FI' },
+      name: muniLabel,
+      address: { '@type': 'PostalAddress', addressLocality: muniLabel, addressCountry: 'FI' },
     },
   };
   const breadcrumb = {
@@ -1590,7 +1775,7 @@ ${buildCiteSection(lang, M.title(muni.name), alternates[lang])}
       { '@type': 'ListItem', position: 1, name: 'naapurustot.fi', item: `${ORIGIN}/` },
       { '@type': 'ListItem', position: 2, name: T.dirCrumb, item: dirUrl(lang) },
       { '@type': 'ListItem', position: 3, name: regionName, item: cityUrl(muni.regionId, lang) },
-      { '@type': 'ListItem', position: 4, name: muni.name },
+      { '@type': 'ListItem', position: 4, name: muniLabel },
     ],
   };
   const jsonLd = [collection, breadcrumb]
@@ -1599,8 +1784,8 @@ ${buildCiteSection(lang, M.title(muni.name), alternates[lang])}
 
   return htmlPage({
     lang,
-    title: M.title(muni.name),
-    description: M.desc(muni.name, muni.count),
+    title: M.title(muniLabel),
+    description: M.desc(muniLabel, muni.count),
     canonical: alternates[lang],
     alternates,
     jsonLd,
@@ -1615,7 +1800,7 @@ function buildMunicipalitiesNav(region, lang) {
   const M = MUNI_TEXT[lang];
   const items = [...list]
     .sort((a, b) => a.name.localeCompare(b.name, 'fi'))
-    .map((m) => `<li><a href="${MUNI_PREFIX[lang]}/${escapeHtml(m.slug)}/">${escapeHtml(m.name)}</a></li>`)
+    .map((m) => `<li><a href="${MUNI_PREFIX[lang]}/${escapeHtml(m.slug)}/">${escapeHtml(muniName(m.name, lang))}</a></li>`)
     .join('');
   return `      <h2>${escapeHtml(M.regionMunisHeading)}</h2>
       <ul class="muni-nav">${items}</ul>`;
@@ -1813,7 +1998,7 @@ function buildPlanningNav(region, lang) {
   const munis = planningMunisByRegion.get(region.id);
   if (!munis || munis.length === 0) return '';
   const links = munis
-    .map((a) => `<a href="${planningPath(slugify(a.municipality), lang)}">${escapeHtml(a.municipality)}</a>`)
+    .map((a) => `<a href="${planningPath(slugify(a.municipality), lang)}">${escapeHtml(muniName(a.municipality, lang))}</a>`)
     .join(' · ');
   return `      <h2>${escapeHtml(PLANNING_TEXT[lang].crossHeading)}</h2>\n      <p>${links}</p>`;
 }
@@ -1822,13 +2007,13 @@ function buildPlanningNav(region, lang) {
  *  publishes planning data (a real generated page, so no 404). */
 function buildMuniPlanningNav(muni, lang) {
   if (!planningByMuni.has(muni.name)) return '';
-  return `      <h2>${escapeHtml(PLANNING_TEXT[lang].crossHeading)}</h2>\n      <p><a href="${planningPath(slugify(muni.name), lang)}">${escapeHtml(muni.name)}</a></p>`;
+  return `      <h2>${escapeHtml(PLANNING_TEXT[lang].crossHeading)}</h2>\n      <p><a href="${planningPath(slugify(muni.name), lang)}">${escapeHtml(muniName(muni.name, lang))}</a></p>`;
 }
 
 /** Build one municipality planning hub page. */
 function buildPlanningHub(agg, slug, lang) {
   const T = PLANNING_TEXT[lang];
-  const muni = agg.municipality;
+  const muni = muniName(agg.municipality, lang);
   const alternates = planningAlternates(slug);
   const regionName = agg.regionId ? getRegionName(agg.regionId, lang) : '';
   const n = agg.entries.length;
@@ -2008,6 +2193,7 @@ const bestScopes = [...byMunicipality.values()]
     for (const f of m.features) if (typeof f.properties.he_vakiy === 'number') totalPop += f.properties.he_vakiy;
     return {
       name: m.name,
+      label: (lang) => muniName(m.name, lang),
       slug,
       regionId: m.regionId,
       features: m.features,
@@ -2026,6 +2212,51 @@ const bestScopeByName = new Map(bestScopes.map((s) => [s.name, s]));
 {
   const slugs = new Set(bestScopes.map((s) => s.slug));
   if (slugs.size !== bestScopes.length) throw new Error('prerender-hubs: duplicate parhaat-asuinalueet slug');
+}
+
+// Sweden's: every kommun with enough DeSOs whose score varies. A kommun with its own
+// /kunta/ page keeps that page's slug; any other takes the same rule as kommun pages (the
+// kommun code on a slug two kommuner share, or one Finland already uses).
+const seKommunPageByName = new Map(seMunicipalities.map((m) => [m.name, m]));
+const seBestScopes = (() => {
+  const byName = new Map();
+  for (const region of seRegions) {
+    for (const f of region.features) {
+      const n = f.properties.municipality;
+      if (!n) continue;
+      if (!byName.has(n)) byName.set(n, { name: n, regionId: region.id, features: [] });
+      byName.get(n).features.push(f);
+    }
+  }
+  const taken = new Set([...bestScopes.map((x) => x.slug), ...muniSlugCounts.keys(), BEST_COUNTRY.se.slug]);
+  const baseCounts = new Map();
+  for (const n of byName.keys()) baseCounts.set(slugify(n), (baseCounts.get(slugify(n)) || 0) + 1);
+  return [...byName.values()]
+    .filter((m) => hasRankableSpread(m.features, QI_METRIC, BEST_MIN_RANKED))
+    .map((m) => {
+      const page = seKommunPageByName.get(m.name);
+      const base = slugify(m.name);
+      const code = String(m.features[0].properties.kunta || '');
+      const slug = page ? page.slug : ((baseCounts.get(base) > 1 || taken.has(base)) && code ? `${base}-${code}` : base);
+      let totalPop = 0;
+      for (const f of m.features) if (typeof f.properties.he_vakiy === 'number') totalPop += f.properties.he_vakiy;
+      return {
+        name: m.name,
+        label: (lang) => seMuniLabel(m.name, lang),
+        slug,
+        regionId: m.regionId,
+        features: m.features,
+        totalPop,
+        hubPath: (lang) => (page ? muniPath(page.slug, lang) : `${CITY_PREFIX[lang]}/${m.regionId}/`),
+        rankPathFor: () => null,
+      };
+    })
+    .sort((a, b) => b.totalPop - a.totalPop || a.name.localeCompare(b.name, 'sv'));
+})();
+const seBestScopeByName = new Map(seBestScopes.map((x) => [x.name, x]));
+{
+  const all = [...bestScopes, ...seBestScopes].map((x) => x.slug);
+  if (new Set(all).size !== all.length || all.includes(BEST_COUNTRY.se.slug)) throw new Error('prerender-hubs: duplicate parhaat-asuinalueet slug across countries');
 }
 
 for (const lang of LANGS) {
@@ -2129,27 +2360,24 @@ for (const muni of municipalities) {
 
 writeFileSync(join(DIST, 'ranking-pages.json'), JSON.stringify(rankingManifest));
 
-// "Parhaat asuinalueet": Finland + one page per municipality (×3 languages).
+// "Parhaat asuinalueet": each country + one page per municipality (×3 languages).
 const bestManifest = [];
-{
-  const ranked = rankFeatures(RANKABLE, QI_METRIC, BEST_NATIONAL_TOP_N);
-  const count = RANKABLE.filter((f) => isRankable(f, QI_METRIC)).length;
+function writeBestSet(countryId, scope, features, topN) {
+  const ranked = rankFeatures(features, QI_METRIC, topN);
+  const count = features.filter((f) => isRankable(f, QI_METRIC)).length;
+  const slug = scope ? scope.slug : BEST_COUNTRY[countryId].slug;
   for (const lang of LANGS) {
-    const dir = join(DIST, ...bestPath(null, lang).split('/').filter(Boolean));
+    const dir = join(DIST, ...bestPath(slug, lang).split('/').filter(Boolean));
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), buildBestPage(lang, null, RANKABLE, ranked, count));
+    writeFileSync(join(dir, 'index.html'), buildBestPage(lang, countryId, scope, features, ranked, count));
   }
-  bestManifest.push(bestAlternates(null));
+  bestManifest.push(bestAlternates(slug));
 }
-for (const scope of bestScopes) {
-  const ranked = rankFeatures(scope.features, QI_METRIC, BEST_TOP_N);
-  const count = scope.features.filter((f) => isRankable(f, QI_METRIC)).length;
-  for (const lang of LANGS) {
-    const dir = join(DIST, ...bestPath(scope.slug, lang).split('/').filter(Boolean));
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), buildBestPage(lang, scope, scope.features, ranked, count));
-  }
-  bestManifest.push(bestAlternates(scope.slug));
+writeBestSet('fi', null, RANKABLE, BEST_NATIONAL_TOP_N);
+for (const scope of bestScopes) writeBestSet('fi', scope, scope.features, BEST_TOP_N);
+if (seBestScopes.length) {
+  writeBestSet('se', null, seRegions.flatMap((r) => r.features), BEST_NATIONAL_TOP_N);
+  for (const scope of seBestScopes) writeBestSet('se', scope, scope.features, BEST_TOP_N);
 }
 writeFileSync(join(DIST, 'parhaat-asuinalueet-pages.json'), JSON.stringify(bestManifest));
 console.log(`Prerendered ${bestManifest.length} "parhaat asuinalueet" page sets (${bestManifest.length * 3} HTML files; manifest → dist/parhaat-asuinalueet-pages.json).`);
@@ -2384,13 +2612,13 @@ function navFor(pno, lang) {
 // Municipality hub per pno.
 for (const muni of municipalities) {
   for (const f of muni.features) {
-    for (const lang of LANGS) navFor(f.properties.pno, lang).muni = { href: muniPath(muni.slug, lang), label: muni.name };
+    for (const lang of LANGS) navFor(f.properties.pno, lang).muni = { href: muniPath(muni.slug, lang), label: muniName(muni.name, lang) };
   }
 }
 // Planning hub per pno (its municipality publishes planning data).
 for (const p of propsByPno.values()) {
   if (p.municipality && planningByMuni.has(p.municipality)) {
-    for (const lang of LANGS) navFor(p.pno, lang).planning = { href: planningPath(slugify(p.municipality), lang), label: p.municipality };
+    for (const lang of LANGS) navFor(p.pno, lang).planning = { href: planningPath(slugify(p.municipality), lang), label: muniName(p.municipality, lang) };
   }
 }
 // Rankings per pno — national + region + muni, mirroring the exact pages written above.
