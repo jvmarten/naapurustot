@@ -3321,6 +3321,7 @@ const App: React.FC = () => {
             qualityWeights={customWeights ? qualityWeights : undefined}
             allFeatures={allFeatures}
             activeLayer={activeLayer}
+            timeYear={timeYear != null && timeHistoryProp && timeYear !== latestYear ? timeYear : null}
             onFlyTo={handleFlyTo}
             isFavorite={isFavorite(selected.pno)}
             onToggleFavorite={handleToggleFavorite}

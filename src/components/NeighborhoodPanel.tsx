@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { NeighborhoodProperties } from '../utils/metrics';
-import { parseTrendSeries, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
+import { parseTrendSeries, timeSeriesYearProp, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatFineDensity, formatEuroSqm } from '../utils/formatting';
 import { estimateFor } from '../utils/spatialEstimate';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
@@ -17,7 +17,7 @@ import type { IsochroneMode } from '../utils/isochrone';
 import { findSimilarNeighborhoods, AVAILABLE_SIMILARITY_METRICS, SIMILARITY_WEIGHT_MIN, SIMILARITY_WEIGHT_MAX, SIMILARITY_WEIGHT_DEFAULT } from '../utils/similarity';
 import { resolveNeighborPnos } from '../utils/adjacency';
 import { getFeatureCenter } from '../utils/geometryFilter';
-import { formatNoise, getLayerById, getInterpolatedColor, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
+import { formatNoise, getLayerById, getInterpolatedColor, TIME_SERIES_LAYERS, rampGradientCss, readableTextColor, type LayerId } from '../utils/colorScales';
 import { histogram, percentileRank, binIndexOf } from '../utils/correlation';
 import { toSlug } from '../utils/slug';
 import { useNavigate } from 'react-router-dom';
@@ -74,6 +74,9 @@ interface PanelProps {
   allFeatures?: GeoJSON.Feature[];
   /** QW-1: the active map layer, so the panel can show that metric's distribution + percentile */
   activeLayer?: LayerId;
+  /** The earlier year the time slider shows on the map, or null on the current data.
+   *  The active-layer card then reads that year, as the map does. */
+  timeYear?: number | null;
   onFlyTo?: (center: [number, number]) => void;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
@@ -450,22 +453,32 @@ const ActiveLayerCard: React.FC<{
   activeLayer: LayerId;
   props: NeighborhoodProperties;
   averages: Record<string, number>;
+  /** An earlier year of the layer's series, as the time slider draws it; null = current. */
+  year?: number | null;
   onJump?: () => void;
-}> = React.memo(({ activeLayer, props, averages, onJump }) => {
+}> = React.memo(({ activeLayer, props, averages, year = null, onJump }) => {
   useI18nVersion();
   const baselineLabel = React.useContext(BaselineLabelContext);
   const layer = getLayerById(activeLayer);
-  const own = toNum((props as unknown as Record<string, unknown>)[layer.property]);
+  const rec = props as unknown as Record<string, unknown>;
+  // Scrubbed to an earlier year: the map draws `<history>__<year>`, so read the same
+  // key (falling back to the series itself) and that year's estimate.
+  const hist = year != null ? TIME_SERIES_LAYERS[activeLayer] : undefined;
+  const property = hist && year != null ? timeSeriesYearProp(hist, year) : layer.property;
+  const own = hist && year != null
+    ? toNum(rec[property]) ?? parseTrendSeries(rec[hist] as string | null)?.find(([y]) => y === year)?.[1] ?? null
+    : toNum(rec[layer.property]);
   // Same neighbour estimate the map paints and the tooltip shows for an area with no
   // measured value — labelled as such, never passed off as the area's figure.
-  const fallback = own == null ? estimateFor(props as unknown as Record<string, unknown>, layer.property) : null;
+  const fallback = own == null ? estimateFor(rec, property) : null;
   const value = own ?? fallback;
   const text = value == null
     ? t('tooltip.no_data')
     : layer.id === 'noise_pollution' && own != null
       ? formatNoise(own, props.noise_floor_db)
       : (layer.tooltipFormat ?? layer.format)(value);
-  const avgVal = averages[layer.property];
+  // The averages are of the current data, so an earlier year has nothing to compare to.
+  const avgVal = hist ? undefined : averages[layer.property];
   let cmp: { text: string; cls: string } | null = null;
   if (own != null && avgVal != null && avgVal !== 0 && !(layer.id === 'noise_pollution' && props.noise_floor_db != null)) {
     const diffPct = ((own - avgVal) / Math.abs(avgVal)) * 100;
@@ -482,6 +495,7 @@ const ActiveLayerCard: React.FC<{
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 truncate">
           {t('panel.active_layer')} · <span className="text-brand-700 dark:text-brand-300">{t(layer.labelKey)}</span>
+          {hist && year != null && <span className="tabular-nums"> · {year}</span>}
         </span>
         {onJump && (
           <button
@@ -1075,7 +1089,7 @@ const NotesEditor: React.FC<{ pno: string; userId?: string | null }> = React.mem
 });
 NotesEditor.displayName = 'NotesEditor';
 
-export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', qualityScopeMulti = false, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
+export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, metroAverages: avg, onClose, onPin, onUnpin, isPinned, pinCount = 0, onCustomize, isCustomWeights = false, qualityWeights, allFeatures, activeLayer, timeYear = null, onFlyTo, isFavorite = false, onToggleFavorite, isInShortlist = false, onToggleShortlist, referencePno, referenceName, onSetReference, qualityScope = 'national', qualityScopeMulti = false, onExploreCity, userId, isochroneEnabled = false, isochroneMode = 'walk', isochroneBudget = 20, isochroneLoading = false, isochroneError = false, isochroneActive = false, onIsochroneChange, onIsochroneClear, similarityWeights, onSimilarityWeightChange, onSimilarityToggle, regionName, scopeRegionName, wizardProfile, onOpenWizard }) => {
   // QW-4: capture the i18n version so memos that build translated strings (the
   // MOBILE_SECTIONS tab labels) recompute on a language switch / lazy-dict arrival.
   const i18nVersion = useI18nVersion();
@@ -1653,6 +1667,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           activeLayer={activeLayer!}
           props={d}
           averages={avg}
+          year={timeYear}
           onJump={jumpMissing === activeLayer ? undefined : jumpToActiveLayer}
         />
       )}
