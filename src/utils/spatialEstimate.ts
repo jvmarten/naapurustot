@@ -27,6 +27,11 @@
  * against 7.6 %. Gaps tend to be sparser than the areas that test them, so treat these
  * as a lower bound on the error.
  *
+ * Time series: a layer whose measured key has estimates may also carry a year series
+ * (`property_price_history`). Each year of it is estimated the same way, from that
+ * year's measured areas only (`ESTIMATED_HISTORIES`), so scrubbing the time slider back
+ * keeps the gaps filled — and hatched — instead of turning them grey.
+ *
  * Node-safe (imported by scripts/build_region_data.mjs) — no Vite-only imports.
  */
 import { countryOfId } from './areaId.ts';
@@ -43,7 +48,16 @@ export const DERIVED_ESTIMATES = {
   price_to_rent_ratio: { decimals: 1 },
 } as const;
 
+/** Year-series property (`TIME_SERIES_HISTORY_PROPS`) → decimals of its per-year estimate.
+ *  Each year is estimated on its own, from the areas measured THAT year, into
+ *  `<history>__<year>_est` — beside the `<history>__<year>` key the time slider draws. */
+export const ESTIMATED_HISTORIES: Readonly<Record<string, number>> = {
+  property_price_history: 0,
+};
+
 export const ESTIMATE_SUFFIX = '_est';
+
+const YEAR_KEY = /^(.+)__(\d{4})$/;
 
 export const ESTIMATE_PARAMS = {
   /** Nearest measured areas used. */
@@ -64,7 +78,9 @@ export function estimateKey(property: string): string {
 
 /** True when `property` has neighbour estimates beside it. */
 export function hasEstimates(property: string): boolean {
-  return property in ESTIMATED_PROPERTIES || property in DERIVED_ESTIMATES;
+  if (property in ESTIMATED_PROPERTIES || property in DERIVED_ESTIMATES) return true;
+  const m = YEAR_KEY.exec(property);
+  return m != null && m[1] in ESTIMATED_HISTORIES;
 }
 
 export function isEstimateKey(key: string): boolean {
@@ -174,5 +190,38 @@ export function addNeighbourEstimates(rows: Row[]): Record<string, number> {
     }
     counts[estimateKey(prop)] = n;
   }
+  // One year of a series at a time: an area measured in 2021 but suppressed in 2023
+  // gets a 2023 estimate from its 2023-measured neighbours, never a carried-forward value.
+  for (const [hist, decimals] of Object.entries(ESTIMATED_HISTORIES)) {
+    const byYear = new Map<number, Map<number, number>>(); // year → row index → value
+    rows.forEach((r, i) => {
+      const series = historyPoints(r[hist]);
+      for (const [year, v] of series) {
+        if (!byYear.has(year)) byYear.set(year, new Map());
+        byYear.get(year)!.set(i, v);
+      }
+    });
+    for (const year of [...byYear.keys()].sort((a, b) => a - b)) {
+      const values = byYear.get(year)!;
+      const yearRows = rows.map((r, i) => ({ pno: r.pno, lat: r.lat, lon: r.lon, he_vakiy: r.he_vakiy, v: values.get(i) ?? null }));
+      const est = neighbourEstimates(yearRows, 'v', decimals);
+      const key = estimateKey(`${hist}__${year}`);
+      let n = 0;
+      rows.forEach((r, i) => { if (est[i] != null) { r[key] = est[i]; n++; } });
+      counts[key] = n;
+    }
+  }
   return counts;
+}
+
+/** A history property's [year, value] points — the GeoJSON stores it as an array or as
+ *  its JSON string. Malformed points are skipped. */
+function historyPoints(raw: unknown): [number, number][] {
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try { parsed = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((p): p is [number, number] =>
+    Array.isArray(p) && p.length === 2 && finite(p[0]) && finite(p[1]));
 }
