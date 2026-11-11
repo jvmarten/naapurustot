@@ -928,10 +928,12 @@ const App: React.FC = () => {
   const latestYear = availableYears.length ? availableYears[availableYears.length - 1] : null;
   // In a region view, a layer with neighbour estimates paints its no-data areas from
   // them (hatched); the legend says what the hatch means. Not in the national views
-  // (region aggregates, no per-area gaps) nor on an earlier year of a time series
-  // (estimates are of the current values only).
-  const showsEstimates = cityFilter !== 'all' && (timeYear == null || timeYear === latestYear)
-    && hasEstimates(getLayerById(activeLayer).property);
+  // (region aggregates, no per-area gaps). An earlier year of a time series has its own
+  // per-year estimates (spatialEstimate.ESTIMATED_HISTORIES).
+  const showsEstimates = cityFilter !== 'all' && hasEstimates(
+    timeYear != null && timeHistoryProp && timeYear !== latestYear
+      ? timeSeriesYearProp(timeHistoryProp, timeYear)
+      : getLayerById(activeLayer).property);
 
   const prevEffectiveLayerRef = useRef<ReturnType<typeof getLayerById> | null>(null);
   const effectiveLayer = useMemo(() => {

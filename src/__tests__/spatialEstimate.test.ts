@@ -94,6 +94,25 @@ describe('addNeighbourEstimates', () => {
     // Derived exactly as the measured ratio is: price / (rent × 12).
     expect(rows[2][estimateKey('price_to_rent_ratio')]).toBeCloseTo(1500 / (rent * 12), 1);
   });
+
+  it('estimates each year of a price series from that year\'s measured areas only', () => {
+    const rows: Record<string, unknown>[] = [
+      row('00100', 60, 25, { property_price_history: [[2020, 1000], [2021, 1100]] }),
+      row('00200', 60.01, 25, { property_price_history: JSON.stringify([[2020, 2000], [2021, 2200]]) }),
+      row('00300', 60.02, 25, { property_price_history: [[2020, 3000]] }),
+      row('00400', 60.005, 25),
+    ];
+    addNeighbourEstimates(rows);
+    // Measured that year → no estimate; suppressed that year → one from that year.
+    expect(rows[2]['property_price_history__2020_est']).toBeUndefined();
+    const est2021 = rows[2]['property_price_history__2021_est'] as number;
+    expect(est2021).toBeGreaterThan(1100);
+    expect(est2021).toBeLessThan(2200);
+    const est2020 = rows[3]['property_price_history__2020_est'] as number;
+    expect(est2020).toBeGreaterThan(1000);
+    expect(est2020).toBeLessThan(3000);
+    expect(rows[0]['property_price_history__2020_est']).toBeUndefined();
+  });
 });
 
 describe('estimate helpers', () => {
@@ -109,8 +128,12 @@ describe('estimate helpers', () => {
   it('the map paints a no-data area from its estimate, and only for layers that have one', () => {
     const price = JSON.stringify(buildFillColorExpression(getLayerById('property_price')));
     expect(price).toContain('property_price_sqm_est');
-    // A time-scrub year property has no estimates.
-    expect(JSON.stringify(buildFillColorExpression(getLayerById('property_price'), 'property_price_2020'))).not.toContain('_est');
+    // A time-scrub year of the price series has its own per-year estimate…
+    const year = JSON.stringify(buildFillColorExpression({ ...getLayerById('property_price'), property: 'property_price_history__2022' }));
+    expect(year).toContain('property_price_history__2022_est');
+    expect(isEstimateKey('property_price_history__2022_est')).toBe(true);
+    // …a series without estimates has none.
+    expect(hasEstimates('income_history__2022')).toBe(false);
     expect(JSON.stringify(buildFillColorExpression(getLayerById('median_income')))).not.toContain('_est');
   });
 
@@ -137,6 +160,22 @@ describe('committed artifacts', () => {
       }
     }
     expect(n).toBeGreaterThan(1000);
+  });
+
+  it('carry per-year price estimates only for years the area was not measured', () => {
+    let n = 0;
+    for (const p of props) {
+      const h = p.property_price_history;
+      const series = (typeof h === 'string' ? JSON.parse(h) : h) as [number, number][] | null;
+      const measured = new Set((series ?? []).map(([y]) => y));
+      for (const key of Object.keys(p)) {
+        const m = /^property_price_history__(\d{4})_est$/.exec(key);
+        if (!m || p[key] == null) continue;
+        n++;
+        expect(measured.has(Number(m[1])), `${p.pno} ${key}`).toBe(false);
+      }
+    }
+    expect(n).toBeGreaterThan(5000);
   });
 
   // App draws the latest year of the price series from property_price_sqm (wider
