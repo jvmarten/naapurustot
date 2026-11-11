@@ -852,6 +852,8 @@
   "panel.dist_better_than": "Better than {pct}% of areas",
   "panel.dist_sample": "({n} areas compared)",
   "panel.distribution": "Distribution",
+  "panel.active_layer": "Map layer",
+  "panel.jump_to_layer": "Show in details",
   "panel.dwellings": "Dwellings",
   "panel.education": "Education Breakdown",
   "panel.elderly_ratio": "Elderly 65+ (%)",

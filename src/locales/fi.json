@@ -592,6 +592,8 @@
   "panel.dist_better_than": "Parempi kuin {pct} % alueista",
   "panel.dist_sample": "({n} aluetta vertailussa)",
   "panel.distribution": "Jakauma",
+  "panel.active_layer": "Karttataso",
+  "panel.jump_to_layer": "Näytä tiedoissa",
   "panel.dwellings": "Asuntoja",
   "panel.education": "Koulutusjakauma",
   "panel.elderly_ratio": "Ikääntyneet 65+ (%)",
