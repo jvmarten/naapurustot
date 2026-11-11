@@ -13,6 +13,7 @@
  *   - kaavoitus: every per-municipality planning hub
  *   - kunta    : every municipality hub
  *   - vertaa   : every "{A} vs {B}" comparison page
+ *   - parhaat-asuinalueet : the national + per-municipality "best neighbourhoods" pages
  *
  * Why an index of gzipped children (was: one flat urlset of ~19,927 URLs / ~10 MB):
  * the sitemaps.org protocol caps a single sitemap at 50,000 URLs / 50 MB uncompressed.
@@ -240,6 +241,8 @@ const kaavoitusUrls = loadManifestFamily('kaavoitus-pages.json', { fi: '0.6', en
 const kuntaUrls = loadManifestFamily('kunnat-pages.json', { fi: '0.7', en: '0.6', sv: '0.6' });
 // CF-7: "{A} vs {B}" comparison pages (/vertaa/{a}-vs-{b}/).
 const vertaaUrls = loadManifestFamily('vertaa-pages.json', { fi: '0.5', en: '0.4', sv: '0.4' });
+// "Parhaat asuinalueet" pages (/parhaat-asuinalueet/[{kunta}/]).
+const parhaatAsuinalueetUrls = loadManifestFamily('parhaat-asuinalueet-pages.json', { fi: '0.8', en: '0.6', sv: '0.6' });
 
 const families = [
   { name: 'pages', urls: pagesUrls },
@@ -250,6 +253,7 @@ const families = [
   { name: 'kaavoitus', urls: kaavoitusUrls },
   { name: 'kunta', urls: kuntaUrls },
   { name: 'vertaa', urls: vertaaUrls },
+  { name: 'parhaat-asuinalueet', urls: parhaatAsuinalueetUrls },
 ];
 
 // --- Ceiling guard --------------------------------------------------------
