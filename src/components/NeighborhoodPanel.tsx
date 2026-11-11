@@ -128,6 +128,11 @@ const BaselineLabelContext = React.createContext<string | null>(null);
  *  country's — a Swedish area's unemployment is SCB's figure, not Paavo's. */
 const AreaCountryContext = React.createContext<CountryId>('fi');
 
+/** The map layer the user is looking at: its StatRow is highlighted, and `reveal`
+ *  bumps when the user asks to jump to that row, so a collapsed section holding it
+ *  opens itself (see CollapsibleSection). */
+const ActiveMetricContext = React.createContext<{ property: string | null; reveal: number }>({ property: null, reveal: 0 });
+
 /** The per-row delta next to each value ("+11,717.0 vs. metro"). Off: at the panel's
  *  width it crowds the number it annotates and reads as clutter. Every StatRow still
  *  computes and passes `diff`/`diffClass`, so flipping this back to `true` restores
@@ -154,6 +159,8 @@ const StatRow: React.FC<{
   // CF-5: "vs <reference>" when a custom reference baseline is active, else "vs metro".
   const baselineLabel = React.useContext(BaselineLabelContext);
   const country = React.useContext(AreaCountryContext);
+  const activeMetric = React.useContext(ActiveMetricContext).property;
+  const isActiveMetric = !!property && activeMetric === property;
   const source = property ? getMetricSource(property, country) : undefined;
   // The plain-language explanations describe Finland's definitions. For a Swedish area
   // only a Sweden-only metric's applies; a shared key's Swedish definition is its note.
@@ -225,8 +232,11 @@ const StatRow: React.FC<{
   }, [infoOpen]);
 
   return (
-    <div className="flex items-center justify-between py-2.5 md:py-2">
-      <span className="text-surface-500 dark:text-surface-400 text-sm flex items-center gap-1">
+    <div
+      data-active-metric={isActiveMetric ? '' : undefined}
+      className={`flex items-center justify-between py-2.5 md:py-2 ${isActiveMetric ? '-mx-2 px-2 rounded-lg bg-brand-500/10 ring-1 ring-brand-500/30 scroll-mt-28' : ''}`}
+    >
+      <span className={`${isActiveMetric ? 'text-brand-700 dark:text-brand-300 font-medium' : 'text-surface-500 dark:text-surface-400'} text-sm flex items-center gap-1`}>
         {label}
         {source && (
           <span ref={infoRef} className="relative inline-flex items-center flex-shrink-0">
@@ -392,8 +402,24 @@ const CollapsibleSection: React.FC<{
   children: React.ReactNode;
 }> = React.memo(({ title, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
+  // "Show in details": a closed section can't know whether it holds the active layer's
+  // row without rendering it, so on each reveal request it renders its rows once,
+  // hidden, and opens itself if the row is among them. Only ever on that click — the
+  // collapsed-subtree saving above holds the rest of the time.
+  const { reveal } = React.useContext(ActiveMetricContext);
+  const [probedReveal, setProbedReveal] = useState(reveal);
+  const probing = !open && reveal !== probedReveal;
+  const probeRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    // Open sections acknowledge the request too, so closing one later never reads as
+    // a pending reveal and springs it back open.
+    if (reveal === probedReveal) return;
+    if (probeRef.current?.querySelector('[data-active-metric]')) setOpen(true);
+    setProbedReveal(reveal);
+  }, [reveal, probedReveal]);
   return (
     <div>
+      {probing && <div ref={probeRef} hidden>{children}</div>}
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between py-2 cursor-pointer group"
@@ -413,6 +439,79 @@ const CollapsibleSection: React.FC<{
   );
 });
 CollapsibleSection.displayName = 'CollapsibleSection';
+
+// The map layer the user had chosen when they opened the area, at the top of the
+// panel: its value in the map's own colour, the same "vs. avg" the hover tooltip
+// shows, and a jump to the layer's row among the detailed stats.
+const ActiveLayerCard: React.FC<{
+  activeLayer: LayerId;
+  props: NeighborhoodProperties;
+  averages: Record<string, number>;
+  regionFallbacks?: Record<string, number> | null;
+  onJump?: () => void;
+}> = React.memo(({ activeLayer, props, averages, regionFallbacks, onJump }) => {
+  useI18nVersion();
+  const baselineLabel = React.useContext(BaselineLabelContext);
+  const layer = getLayerById(activeLayer);
+  const own = toNum((props as unknown as Record<string, unknown>)[layer.property]);
+  // Same sub-region estimate the map tints and the tooltip shows for a price layer
+  // with no own value — labelled as such, never passed off as the area's figure.
+  const fallback = own == null ? (regionFallbacks?.[layer.property] ?? null) : null;
+  const value = own ?? fallback;
+  const text = value == null
+    ? t('tooltip.no_data')
+    : layer.id === 'noise_pollution' && own != null
+      ? formatNoise(own, props.noise_floor_db)
+      : (layer.tooltipFormat ?? layer.format)(value);
+  const avgVal = averages[layer.property];
+  let cmp: { text: string; cls: string } | null = null;
+  if (own != null && avgVal != null && avgVal !== 0 && !(layer.id === 'noise_pollution' && props.noise_floor_db != null)) {
+    const diffPct = ((own - avgVal) / Math.abs(avgVal)) * 100;
+    if (Math.abs(diffPct) >= 1) {
+      const better = (layer.higherIsBetter !== false) ? diffPct > 0 : diffPct < 0;
+      cmp = {
+        text: `${diffPct > 0 ? '▲ +' : '▼ '}${diffPct.toFixed(0)}% ${baselineLabel ?? t('tooltip.vs_avg')}`,
+        cls: better ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400',
+      };
+    }
+  }
+  return (
+    <div className="rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 truncate">
+          {t('panel.active_layer')} · <span className="text-brand-700 dark:text-brand-300">{t(layer.labelKey)}</span>
+        </span>
+        {onJump && (
+          <button
+            type="button"
+            onClick={onJump}
+            className="inline-flex shrink-0 items-center gap-0.5 min-h-[44px] md:min-h-0 -my-3 md:my-0 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+          >
+            {t('panel.jump_to_layer')}
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        )}
+      </div>
+      <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+        {value != null && (
+          <span
+            className="self-center w-3 h-3 rounded-sm shrink-0 border border-black/10"
+            style={{ background: getInterpolatedColor(layer, value) }}
+            aria-hidden="true"
+          />
+        )}
+        <span className={`text-lg font-semibold tabular-nums ${value == null ? 'text-surface-400 italic' : 'text-surface-900 dark:text-white'}`}>{text}</span>
+        {fallback != null && (
+          <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400">{t('data.subregion_estimate')}</span>
+        )}
+        {cmp && <span className={`text-xs ${cmp.cls}`}>{cmp.text}</span>}
+      </div>
+    </div>
+  );
+});
+ActiveLayerCard.displayName = 'ActiveLayerCard';
 
 // QW-1: distribution of the active layer's metric across the loaded scope, with
 // this neighbourhood's bin highlighted and its direction-aware percentile. Reuses
@@ -467,7 +566,7 @@ const DistributionSection: React.FC<{
   return (
     // C5: remount + fade on each active-layer change so the swapped distribution
     // is perceptible (the animation is reduced-motion-safe via index.css).
-    <div key={activeLayer} className="px-4 md:px-5 pt-3 animate-fade-in">
+    <div key={activeLayer} data-active-distribution className="px-4 md:px-5 pt-3 animate-fade-in scroll-mt-28">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 mb-2">
         {t('panel.distribution')} · {t(layer.labelKey)}
       </h3>
@@ -1112,6 +1211,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // Escape-to-close handler. Runs once per open (the component instance is reused
   // across neighborhood changes, so this fires on mount/unmount only).
   const desktopPanelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
     // offsetParent is null for the display:none container at the current breakpoint.
@@ -1166,6 +1266,71 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     setActiveSection(next);
     tablistRef.current?.querySelector<HTMLButtonElement>(`#section-tab-${next}`)?.focus();
   }, [activeSection, setActiveSection, MOBILE_SECTIONS.length]);
+
+  // PO-3: Array of mobile section content fragments.
+  // Only mount sections that have been visited (active or previously swiped to).
+  // This defers rendering ~60+ DOM elements for hidden tabs until the user actually
+  // swipes to them, cutting panel open time significantly on mobile.
+  const [visitedSections, setVisitedSections] = useState<Set<number>>(() => new Set([0]));
+  // biome-ignore lint: activeSection tracked via effect
+  React.useEffect(() => {
+    setVisitedSections((prev) => {
+      if (prev.has(activeSection)) return prev;
+      const next = new Set(prev);
+      next.add(activeSection);
+      return next;
+    });
+  }, [activeSection]);
+  // "Show in details": open the section holding the active layer's row (each
+  // CollapsibleSection probes itself on the `reveal` bump), then scroll to it. Not
+  // every layer has a row of its own: those go to the distribution chart, and a layer
+  // with neither loses the button. On the phone sheet the row sits in another tab,
+  // which may not be mounted yet: mount the stats tab first (a section mounted in the
+  // same commit as the bump would take the new `reveal` as already handled), then
+  // reveal, then switch to whichever tab holds the row and scroll inside it.
+  const [reveal, setReveal] = useState(0);
+  const [jumpMissing, setJumpMissing] = useState<LayerId | null>(null);
+  const activeProperty = activeLayer ? getLayerById(activeLayer).property : null;
+  const activeMetricCtx = useMemo(() => ({ property: activeProperty, reveal }), [activeProperty, reveal]);
+  const showActiveCard = !!activeLayer && activeLayer !== 'quality_index' && !d._noData;
+  const jumpToActiveLayer = useCallback(() => {
+    const layerAtClick = activeLayer ?? null;
+    const behavior: ScrollBehavior = reducedMotion ? 'auto' : 'smooth';
+    const flash = (el: HTMLElement) => {
+      el.classList.remove('animate-fade-in');
+      void el.offsetWidth;
+      el.classList.add('animate-fade-in');
+    };
+    const desktop = desktopPanelRef.current;
+    const onDesktop = !!desktop && desktop.offsetParent !== null;
+    if (!onDesktop) setVisitedSections((prev) => (prev.has(1) ? prev : new Set(prev).add(1)));
+    // One frame for the tab to mount, then two for the probe and open renders.
+    requestAnimationFrame(() => {
+      setReveal((r) => r + 1);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const root = onDesktop ? desktop : sheetRef.current;
+        // A layer with no stat row of its own still has its distribution chart.
+        const row = root?.querySelector<HTMLElement>('[data-active-metric]')
+          ?? root?.querySelector<HTMLElement>('[data-active-distribution]');
+        if (!row) { setJumpMissing(layerAtClick); return; }
+        if (onDesktop) {
+          row.scrollIntoView({ behavior, block: 'center' });
+          flash(row);
+          return;
+        }
+        // Not scrollIntoView: the tabs are a translateX carousel inside an
+        // overflow-hidden track, which scrollIntoView would scroll sideways.
+        const pane = row.closest<HTMLElement>('[role="tabpanel"]');
+        const idx = pane ? Number(pane.id.replace('section-panel-', '')) : NaN;
+        if (!pane || !Number.isFinite(idx)) return;
+        setActiveSection(idx);
+        const top = row.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+        pane.scrollTo({ top: Math.max(0, top - pane.clientHeight / 2 + row.offsetHeight / 2), behavior });
+        flash(row);
+      }));
+    });
+  }, [activeLayer, reducedMotion, setActiveSection]);
+
 
   // The header's icon buttons: 44 px touch targets on mobile, compact on desktop.
   const iconBtn = `p-1.5 rounded-lg transition-colors min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center flex-shrink-0
@@ -1477,6 +1642,17 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   // PO-3: Shared section content — used by both desktop and mobile
   const sectionOverview = (
     <>
+      {/* The map layer the user was looking at when they opened this area. The
+          quality index already heads the panel as its own badge. */}
+      {showActiveCard && (
+        <ActiveLayerCard
+          activeLayer={activeLayer!}
+          props={d}
+          averages={avg}
+          regionFallbacks={regionPriceAverages}
+          onJump={jumpMissing === activeLayer ? undefined : jumpToActiveLayer}
+        />
+      )}
       {/* CF-5: active reference baseline banner */}
       {refActive && (
         <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-brand-500/10 border border-brand-500/20 px-3 py-2 text-xs">
@@ -2217,20 +2393,6 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     </>
   );
 
-  // PO-3: Array of mobile section content fragments.
-  // Only mount sections that have been visited (active or previously swiped to).
-  // This defers rendering ~60+ DOM elements for hidden tabs until the user actually
-  // swipes to them, cutting panel open time significantly on mobile.
-  const [visitedSections, setVisitedSections] = useState<Set<number>>(() => new Set([0]));
-  // biome-ignore lint: activeSection tracked via effect
-  React.useEffect(() => {
-    setVisitedSections((prev) => {
-      if (prev.has(activeSection)) return prev;
-      const next = new Set(prev);
-      next.add(activeSection);
-      return next;
-    });
-  }, [activeSection]);
   const mobileSectionDefs = [sectionOverview, sectionStats, sectionTrends, sectionSimilar];
   const mobileSections = mobileSectionDefs.map((section, i) =>
     visitedSections.has(i) ? section : null
@@ -2315,6 +2477,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
   return (
     <AreaCountryContext.Provider value={countryOfId(d.pno)}>
     <BaselineLabelContext.Provider value={vsLabel}>
+    <ActiveMetricContext.Provider value={activeMetricCtx}>
     <>
       {/* Desktop: side panel — role=complementary (NOT dialog): it is non-modal and
           coexists with the map, so it must not trap focus. tabIndex=-1 lets PO-8's
@@ -2616,6 +2779,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
         </div>
       )}
     </>
+    </ActiveMetricContext.Provider>
     </BaselineLabelContext.Provider>
     </AreaCountryContext.Provider>
   );

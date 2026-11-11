@@ -852,6 +852,8 @@
   "panel.dist_better_than": "Bättre än {pct} % av områdena",
   "panel.dist_sample": "({n} områden jämförs)",
   "panel.distribution": "Fördelning",
+  "panel.active_layer": "Kartlager",
+  "panel.jump_to_layer": "Visa i detaljer",
   "panel.dwellings": "Bostäder",
   "panel.education": "Utbildningsfördelning",
   "panel.elderly_ratio": "Äldre 65+ (%)",

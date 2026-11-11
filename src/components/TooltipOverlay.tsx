@@ -10,8 +10,9 @@ import { parseSchools } from '../utils/formatting';
 const getServerSnapshot = (): TooltipData | null => null;
 
 interface TooltipOverlayProps {
-  /** When true (neighborhood selected), the tooltip is hidden */
-  hidden: boolean;
+  /** When true, the tooltip is hidden. (It stays on while an area's panel is open,
+   *  so hovering keeps reading the active layer.) */
+  hidden?: boolean;
   effectiveLayer: LayerConfig;
   metroAverage: number | undefined;
   /** T1: seutukunta price average shown for price-layer areas with no own value. */
@@ -25,7 +26,7 @@ interface TooltipOverlayProps {
  * Self-contained tooltip renderer that subscribes to the tooltip external store.
  * Only this component re-renders on mouse move — the parent App is unaffected.
  */
-export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden, effectiveLayer, metroAverage, priceFallbackValue, regionAverages }) => {
+export const TooltipOverlay: React.FC<TooltipOverlayProps> = React.memo(({ hidden = false, effectiveLayer, metroAverage, priceFallbackValue, regionAverages }) => {
   useI18nVersion();
   const tooltip = useSyncExternalStore(subscribeTooltip, getTooltipSnapshot, getServerSnapshot);
 

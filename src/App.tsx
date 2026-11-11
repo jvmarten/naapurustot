@@ -1449,7 +1449,8 @@ const App: React.FC = () => {
 
   const handleHover = useCallback(
     (props: NeighborhoodProperties | null, x: number, y: number, gridValue?: number | null) => {
-      if (selectedRef.current) return;
+      // Hover keeps reading the active layer while an area's panel is open, so the
+      // map can still be compared area by area without opening each one.
       setTooltipData(props ? { props, x, y, gridValue } : null);
     },
     [],
@@ -3302,7 +3303,6 @@ const App: React.FC = () => {
       {/* Tooltip — hidden on touch devices via CSS.
            Reads from external store so mouse-move doesn't re-render App. */}
       <TooltipOverlay
-        hidden={!!selected}
         effectiveLayer={effectiveLayer}
         metroAverage={(comparisonScope === 'region' ? cityAverages : metroAverages)[effectiveLayer.property]}
         priceFallbackValue={priceFallbackValue}
