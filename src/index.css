@@ -242,11 +242,10 @@ html.theme-transition *::after {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Hide tooltip on touch devices */
-@media (hover: none) and (pointer: coarse) {
-  .tooltip-desktop {
-    display: none !important;
-  }
+/* Hide hover tooltips while the last pointer used was touch (src/utils/pointerKind.ts).
+   Not a (hover: none) media query: touchscreen laptops report that with a mouse in hand. */
+html[data-pointer="touch"] .tooltip-desktop {
+  display: none !important;
 }
 
 /* Mobile: hide map navigation controls to reduce clutter */

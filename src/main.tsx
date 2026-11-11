@@ -6,6 +6,7 @@ import { ThemeProvider } from './hooks/useTheme';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { setErrorReporter } from './utils/errorReporter';
 import { installChunkReloadHandler, isChunkReloadPending } from './utils/chunkReload';
+import { installPointerKindTracking } from './utils/pointerKind';
 import { isInjectedPageScriptError, isInjectedScriptSyntaxError } from './utils/sentryFilters';
 import { detectBrowserLang, getLang, setLang, loadFiExtra, loadFiDetail } from './utils/i18n';
 import './index.css';
@@ -27,6 +28,9 @@ try {
 // deployment — installed before any dynamic import fires so the first failure
 // is caught.
 installChunkReloadHandler();
+
+// Hover tooltips follow the pointer in use, not the device class (pointerKind.ts).
+installPointerKindTracking();
 
 // Code-split the whole App shell off the entry chunk. App (~157KB source) statically
 // pulls the entire map experience — LayerSelector, SearchBar, CitySelector, the Map +
