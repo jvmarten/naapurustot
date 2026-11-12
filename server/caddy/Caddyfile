@@ -50,6 +50,29 @@ api.naapurustot.fi {
 	@unhashed not path /assets/*
 	header @unhashed Cache-Control "max-age=600"
 
+	# A bare area id (/alue/00100/, /en/area/00100/, /sv/omrade/0180c1090/) answers a
+	# 301 to the area's pre-rendered page, found on disk by its "<id>-" prefix. The page
+	# URL carries the name for readers and search results, but someone (or an agent)
+	# holding only a postal code cannot spell that name; without this the bare id got
+	# the SPA shell with a 404 status. Reading the release folder keeps the map
+	# id → name out of this config, so a renamed area needs no Caddy change. An id
+	# with no page falls through to the 404 below, as before.
+	# largest_size, not the first match: after a rename the old name's folder holds a
+	# sub-kilobyte redirect stub (scripts/update_slug_aliases.mjs) that can sort first,
+	# and a profile page is always tens of kilobytes.
+	@bareArea path_regexp bare ^/(alue|en/area|sv/omrade)/([0-9a-z]+)/?$
+	handle @bareArea {
+		@areaPage file {
+			try_files /{re.bare.1}/{re.bare.2}-*/index.html
+			try_policy largest_size
+		}
+		map {file_match.relative} {area_dir} {
+			~^(.*/)index\.html$ "${1}"
+		}
+		redir @areaPage {area_dir}{?query} permanent
+		error 404
+	}
+
 	file_server
 
 	# Same as Pages: unknown paths get the SPA shell (404.html is a copy of
