@@ -296,7 +296,7 @@ official rating.
 - All-areas directory: `https://naapurustot.fi/kaupungit/` (en: `/en/cities/`, sv: `/sv/stader/`)
 - Regional overview: `https://naapurustot.fi/kaupunki/{region}/` (en: `/en/city/{region}/`, sv: `/sv/stad/{region}/`)
 - Municipality page: `https://naapurustot.fi/kunta/{municipality}/` (en: `/en/municipality/…`, sv: `/sv/kommun/…`)
-- Neighbourhood profile: `https://naapurustot.fi/alue/{areaid}-{name}/` (en: `/en/area/{...}`, sv: `/sv/omrade/{...}`); `{areaid}` is a Finnish postal code or a lower-case Swedish DeSO code
+- Neighbourhood profile: `https://naapurustot.fi/alue/{areaid}-{name}/` (en: `/en/area/{...}`, sv: `/sv/omrade/{...}`); `{areaid}` is a Finnish postal code or a lower-case Swedish DeSO code; `/alue/{areaid}/` alone redirects to the full URL
 - Best neighbourhoods (Finland and each municipality): `https://naapurustot.fi/parhaat-asuinalueet/` and `/parhaat-asuinalueet/{municipality}/` (en: `/en/best-neighbourhoods/…`, sv: `/sv/basta-bostadsomraden/…`) — the quality-index top areas, short lists for families, transit and walkability, and a FAQ; Sweden's at `/parhaat-asuinalueet/sverige/` and `/parhaat-asuinalueet/{kommun}/`
 - Best areas by one metric: `https://naapurustot.fi/parhaat/{metric}/`, `/kaupunki/{region}/parhaat/{metric}/`, `/kunta/{municipality}/parhaat/{metric}/` (en: `/best/`, sv: `/basta/`); metrics `quality-index`, `income`, `safety`, `families`, `transit`, `air-quality`, `walkability`, `education`, `students`, `employment`
 - Comparison of two adjacent areas: `https://naapurustot.fi/vertaa/{area-a}-vs-{area-b}/` (en: `/en/compare/…`, sv: `/sv/jamfor/…`)

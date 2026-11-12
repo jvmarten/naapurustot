@@ -39,6 +39,8 @@ Every area has a static, pre-rendered profile page listing its statistics, in th
 
 `{areaid}` is a 5-digit Finnish postal code or a Swedish DeSO code in lower case (e.g. `0180c1090`). Examples: [00100 Helsinki Keskusta](https://naapurustot.fi/alue/00100-helsinki-keskusta-etu-toolo/), [Upplands Väsby omland](https://naapurustot.fi/alue/0114a0010-upplands-vasby-omland/).
 
+If you have only the area id, request `https://naapurustot.fi/alue/{areaid}/` (or `/en/area/{areaid}/`, `/sv/omrade/{areaid}/`): it answers a permanent redirect to the full profile URL, and 404 for an id with no page.
+
 ## Regional and municipality pages
 
 Each of the 69 Finnish sub-regions and 71 Swedish regions has an overview page listing all of its areas with key statistics; Swedish region ids start with `se_`:
