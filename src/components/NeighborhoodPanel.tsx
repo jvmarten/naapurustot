@@ -3,6 +3,7 @@ import type { NeighborhoodProperties } from '../utils/metrics';
 import { parseTrendSeries, timeSeriesYearProp, getMetricSource, vintageFreshness, METRIC_EXPLANATIONS, formatCoveragePct } from '../utils/metrics';
 import { formatNumber, formatEuro, formatPct, formatDiff, diffColor, formatYtlGradeFull, parseSchools, formatDensity, formatFineDensity, formatEuroSqm } from '../utils/formatting';
 import { estimateFor } from '../utils/spatialEstimate';
+import { loadMigrationFlows, type MigrationFlows, type Flow } from '../utils/migrationFlows';
 import { t, getLang, useI18nVersion } from '../utils/i18n';
 import { getQualityCategory, getQualityCategories, getQualityBandPosition, QUALITY_DIMENSIONS, computeQualityCoverage, type QualityWeights } from '../utils/qualityIndex';
 import { usePlanningArea, planningInfo } from '../hooks/usePlanningData';
@@ -147,6 +148,29 @@ const PRICE_TYPE_ROWS = [
   ['price_sqm_three_room', 'panel.price_sqm_three_room'],
   ['price_sqm_rowhouse', 'panel.price_sqm_rowhouse'],
 ] as const;
+
+/** Where the municipality's movers came from and went to, under its net-migration row. */
+const MigrationFlowLines: React.FC<{ kunta: string }> = React.memo(({ kunta }) => {
+  useI18nVersion();
+  const [flows, setFlows] = useState<MigrationFlows | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadMigrationFlows().then((v) => { if (live) setFlows(v); });
+    return () => { live = false; };
+  }, []);
+  const pair = flows?.flows[kunta];
+  if (!flows || !pair) return null;
+  const name = (c: string) => (getLang() === 'sv' && flows.sv[c]) || flows.names[c] || c;
+  const line = (side: Flow[]) => side.map(([c, n]) => `${name(c)} ${formatNumber(n)}`).join(' · ');
+  return (
+    <div className="py-2 text-xs text-surface-500 dark:text-surface-400 space-y-0.5">
+      {pair[0].length > 0 && <p><span className="font-medium">{t('panel.migration_from')}:</span> {line(pair[0])}</p>}
+      {pair[1].length > 0 && <p><span className="font-medium">{t('panel.migration_to')}:</span> {line(pair[1])}</p>}
+      <p className="text-[11px] opacity-80">{fillTemplate(t('panel.migration_flows_source'), { years: `${flows.years[0]}–${flows.years[1]}` })}</p>
+    </div>
+  );
+});
+MigrationFlowLines.displayName = 'MigrationFlowLines';
 
 const StatRow: React.FC<{
   label: string;
@@ -1525,6 +1549,16 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
     () => (incomeHistory ? { data: incomeHistory, color: '#10b981' } : null),
     [incomeHistory],
   );
+  // €/m² by dwelling type and sales count, 2020– (ashi 13mu), one sparkline per row.
+  const priceTypeSparklines = useMemo(() => {
+    const out: Record<string, { data: NonNullable<ReturnType<typeof parseTrendSeries>>; color: string }> = {};
+    for (const [prop] of [...PRICE_TYPE_ROWS, ['property_sales_count']] as const) {
+      const data = parseTrendSeries(d[`${prop}_history`]);
+      if (data) out[prop] = { data, color: '#f59e0b' };
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the five series, not the whole record
+  }, [d.price_sqm_studio_history, d.price_sqm_two_room_history, d.price_sqm_three_room_history, d.price_sqm_rowhouse_history, d.property_sales_count_history]);
   const unemploymentSparkline = useMemo(
     () => (unemploymentHistory ? { data: unemploymentHistory, color: '#f43f5e' } : null),
     [unemploymentHistory],
@@ -1999,6 +2033,9 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           {d.net_migration_rate != null && (
             <StatRow label={t('layer.net_migration')} value={`${Number(d.net_migration_rate) > 0 ? '+' : ''}${Number(d.net_migration_rate).toFixed(1)} ‰`} property="net_migration_rate" />
           )}
+          {d.net_migration_rate != null && d.kunta && (
+            <MigrationFlowLines kunta={d.kunta} />
+          )}
         </div>
       </CollapsibleSection>
 
@@ -2015,7 +2052,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
           />
           {/* €/m² by dwelling type (ashi 13mu); a type StatFin suppresses (<6 sales) is left out. */}
           {PRICE_TYPE_ROWS.map(([prop, labelKey]) => d[prop] != null && (
-            <StatRow key={prop} label={t(labelKey)} value={formatEuroSqm(d[prop])} property={prop} />
+            <StatRow key={prop} label={t(labelKey)} value={formatEuroSqm(d[prop])} property={prop} sparkline={priceTypeSparklines[prop]} />
           ))}
           <StatRow
             label={t('panel.property_price_change')}
@@ -2025,7 +2062,7 @@ export const NeighborhoodPanel: React.FC<PanelProps> = React.memo(({ data: d, me
             property="property_price_change_pct"
           />
           {d.property_sales_count != null && (
-            <StatRow label={t('panel.property_sales_count')} value={formatNumber(d.property_sales_count)} property="property_sales_count" />
+            <StatRow label={t('panel.property_sales_count')} value={formatNumber(d.property_sales_count)} property="property_sales_count" sparkline={priceTypeSparklines.property_sales_count} />
           )}
           <StatRow
             label={t('panel.transit_access')}

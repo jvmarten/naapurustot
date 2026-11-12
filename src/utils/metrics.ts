@@ -155,6 +155,12 @@ export interface NeighborhoodProperties {
   price_sqm_three_room?: number | null;
   price_sqm_rowhouse?: number | null;
   property_sales_count?: number | null;
+  // Their 2020– series, JSON strings like property_price_history.
+  price_sqm_studio_history?: string | null;
+  price_sqm_two_room_history?: string | null;
+  price_sqm_three_room_history?: string | null;
+  price_sqm_rowhouse_history?: string | null;
+  property_sales_count_history?: string | null;
   // Municipal (is_proxy): 2026 income tax rate (Verohallinto), net migration ‰/yr 2023–2025 (StatFin 11ae).
   municipal_tax_rate?: number | null;
   net_migration_rate?: number | null;
