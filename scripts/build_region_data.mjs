@@ -250,6 +250,8 @@ const EXCLUDED_PROPS = new Set([
   // are not metrics of their own (and are sparser, by StatFin's suppression).
   'price_sqm_studio', 'price_sqm_two_room', 'price_sqm_three_room', 'price_sqm_rowhouse',
   'property_sales_count',
+  'price_sqm_studio_history', 'price_sqm_two_room_history', 'price_sqm_three_room_history',
+  'price_sqm_rowhouse_history', 'property_sales_count_history',
   // Foreign-language estimate time series — trend data, not a coverage metric.
   'foreign_language_history',
   // The noise layer's display bound for areas no mapped zone reaches, not a metric.

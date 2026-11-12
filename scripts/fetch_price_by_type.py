@@ -23,6 +23,10 @@ Statistics Finland's own suppression is kept as absence, never filled in:
     establishes this reading, so "." counts as zero sales in the total.
 A postal code with no published sales of any type gets no count at all.
 
+Each also gets a `<prop>_history` series, [[year, value], ...] from 2020 (where the
+table's sales counts begin), only where the latest year is published and at least
+two years are.
+
 Outputs:
   scripts/property_price_by_type.json  {"year": 2025, "areas": {"00100": {...}}}
 
@@ -66,6 +70,9 @@ TYPE_PROPS = {
 }
 COUNT_PROP = "property_sales_count"
 ALL_PROPS = [*TYPE_PROPS.values(), COUNT_PROP]
+HISTORY_PROPS = [prop + "_history" for prop in ALL_PROPS]
+# Sales counts in 13mu begin in 2020; the overall price history uses the same window.
+HISTORY_START_YEAR = 2020
 
 NO_SALES = "."
 SUPPRESSED = {"..", "..."}
@@ -85,11 +92,35 @@ def _post(url, query):
     raise last
 
 
+def _year_record(cells):
+    """One postal code's figures for one year from its four (type, price, count) cells."""
+    rec, n, any_published, count_suppressed = {}, 0, False, False
+    for ty, price, count in cells:
+        if count == NO_SALES:
+            any_published = True  # published as "no sales"
+        elif count in SUPPRESSED:
+            count_suppressed = True
+        else:
+            n += int(count)
+            any_published = True
+        if price not in SUPPRESSED and price != NO_SALES:
+            p = round(float(price))
+            if p > 0:
+                rec[TYPE_PROPS[ty]] = p
+        elif price not in SUPPRESSED | {NO_SALES}:
+            raise RuntimeError(f"unexpected ashi cell marker: {price!r}")
+    # A total is written only when every type's count was published.
+    if any_published and not count_suppressed and n > 0:
+        rec[COUNT_PROP] = n
+    return rec
+
+
 def fetch():
     url, meta = pxweb.fetch_table_meta(*ASHI_TABLE)
     year_code = pxweb.year_var_code(meta)
     year_var = next(v for v in meta["variables"] if v["code"] == year_code)
-    latest = max(year_var["values"])
+    years = sorted(y for y in year_var["values"] if int(y) >= HISTORY_START_YEAR)
+    latest = years[-1]
     postal_var = next(v for v in meta["variables"] if "00100" in v["values"])
     info_var = next(v for v in meta["variables"] if "keskihinta_aritm_nw" in v["values"])
     named = {year_code, postal_var["code"], info_var["code"]}
@@ -101,7 +132,7 @@ def fetch():
 
     query = {
         "query": [
-            {"code": year_code, "selection": {"filter": "item", "values": [latest]}},
+            {"code": year_code, "selection": {"filter": "item", "values": years}},
             {"code": postal_var["code"], "selection": {"filter": "all", "values": ["*"]}},
             {"code": type_var["code"], "selection": {"filter": "item", "values": list(TYPE_PROPS)}},
             {"code": info_var["code"], "selection": {"filter": "item", "values": [price_item, count_item]}},
@@ -110,43 +141,34 @@ def fetch():
     }
     data = _post(url, query)
     cols = [c["code"] for c in data["columns"]]
-    i_pno, i_type = cols.index(postal_var["code"]), cols.index(type_var["code"])
+    i_year, i_pno, i_type = cols.index(year_code), cols.index(postal_var["code"]), cols.index(type_var["code"])
     vcols = [c["code"] for c in data["columns"] if c.get("type") == "c"]
     i_price, i_count = vcols.index(price_item), vcols.index(count_item)
 
-    areas = {}
-    unknown = set()
+    cells = {}  # (pno, year) -> [(type, price, count)]
     for row in data["data"]:
-        pno, ty = row["key"][i_pno][:5], row["key"][i_type]
-        price, count = row["values"][i_price], row["values"][i_count]
-        a = areas.setdefault(pno, {"_n": 0, "_any": False})
-        if count == NO_SALES:
-            a["_any"] = True  # published as "no sales"
-        elif count in SUPPRESSED:
-            a["_suppressed_count"] = True
-        else:
-            a["_n"] += int(count)
-            a["_any"] = True
-        if price not in SUPPRESSED and price != NO_SALES:
-            p = round(float(price))
-            if p > 0:
-                a[TYPE_PROPS[ty]] = p
-        elif price not in SUPPRESSED | {NO_SALES}:
-            unknown.add(price)
-    if unknown:
-        raise RuntimeError(f"unexpected ashi cell markers: {unknown}")
+        k = row["key"]
+        cells.setdefault((k[i_pno][:5], k[i_year]), []).append(
+            (k[i_type], row["values"][i_price], row["values"][i_count]))
+    by_pno = {}
+    for (pno, year), c in cells.items():
+        by_pno.setdefault(pno, {})[year] = _year_record(c)
 
     out = {}
-    for pno, a in sorted(areas.items()):
-        rec = {k: v for k, v in a.items() if not k.startswith("_")}
-        # A total is written only when every type's count was published.
-        if a["_any"] and not a.get("_suppressed_count") and a["_n"] > 0:
-            rec[COUNT_PROP] = a["_n"]
+    for pno, by_year in sorted(by_pno.items()):
+        rec = dict(by_year.get(latest, {}))
+        # A series only where the latest year itself is published, so the sparkline
+        # always ends on the value the row prints.
+        for prop in list(rec):
+            series = [[int(y), by_year[y][prop]] for y in years if prop in by_year.get(y, {})]
+            if len(series) >= 2:
+                rec[prop + "_history"] = series
         if rec:
             out[pno] = rec
-    logger.info("ashi 13mu %s: %d postal codes with a price or a sales count", latest, len(out))
+    logger.info("ashi 13mu %s–%s: %d postal codes with a %s price or sales count", years[0], latest, len(out), latest)
     for prop in ALL_PROPS:
-        logger.info("  %-22s %d", prop, sum(1 for r in out.values() if prop in r))
+        logger.info("  %-22s %4d  (history %d)", prop, sum(1 for r in out.values() if prop in r),
+                    sum(1 for r in out.values() if prop + "_history" in r))
     return int(latest), out
 
 
@@ -165,6 +187,9 @@ def apply(areas):
             matched += 1
         for prop in ALL_PROPS:
             p[prop] = rec.get(prop)
+        # Stored as JSON strings, like property_price_history.
+        for prop in HISTORY_PROPS:
+            p[prop] = json.dumps(rec[prop]) if prop in rec else None
     with open(GEOJSON_PATH, "w", encoding="utf-8") as f:
         if default_format:
             json.dump(data, f)

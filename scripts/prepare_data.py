@@ -2887,6 +2887,10 @@ def main():
                if PROPERTY_PRICE_BY_TYPE_FILE.exists() else {})
     for prop in PRICE_BY_TYPE_PROPS:
         gdf[prop] = [by_type.get(p, {}).get(prop) for p in gdf["pno"]]
+        # Its 2020– series, stored as JSON strings like property_price_history.
+        gdf[prop + "_history"] = [json.dumps(by_type[p][prop + "_history"])
+                                  if prop + "_history" in by_type.get(p, {}) else None
+                                  for p in gdf["pno"]]
     for prop, path in (("municipal_tax_rate", MUNICIPAL_TAX_RATE_FILE),
                        ("net_migration_rate", NET_MIGRATION_RATE_FILE)):
         vals = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
