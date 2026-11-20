@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Umami trend</title>
+<!--
+  A moving-average view of Umami's daily chart. Served by Caddy at
+  analytics.naapurustot.fi/trend (server/caddy/Caddyfile), i.e. the same origin as
+  Umami, so it reuses the dashboard's login: Umami keeps its bearer token in
+  localStorage under "umami.auth" (src/lib/constants.ts AUTH_TOKEN) and the page sends
+  it to Umami's own /api/websites/:id/pageviews — the endpoint the dashboard chart
+  reads. Nothing is stored or computed server-side; Umami itself is unmodified.
+-->
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #667085; --line: #e4e7ec;
+    --bar: #9ec5fb; --bar-today: #d6e6fd; --ma: #1f5fd1; --ma2: #d9480f; --accent: #1f5fd1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1a1f27; --fg: #e6e9ef; --muted: #98a2b3; --line: #2a313c;
+      --bar: #2f5a96; --bar-today: #243a5a; --ma: #8ab4ff; --ma2: #ff9b6b; --accent: #8ab4ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  header a { color: var(--accent); text-decoration: none; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 16px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  select, input { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px; min-width: 0; }
+  input { width: 7em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .d { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .up { color: #12893c; } .down { color: #c4320a; }
+  #chart { position: relative; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { fill: var(--muted); font-size: 11px; }
+  .grid { stroke: var(--line); }
+  .legend { display: flex; gap: 16px; justify-content: center; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; }
+  #tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px; font-size: 12px; white-space: nowrap; display: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12); font-variant-numeric: tabular-nums; }
+  #msg { color: var(--muted); padding: 24px 0; text-align: center; }
+  #msg a { color: var(--accent); }
+  .note { color: var(--muted); font-size: 12px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Daily trend with moving average</h1>
+    <a id="back" href="/">← Umami dashboard</a>
+  </header>
+
+  <div class="controls">
+    <label>Website <select id="website"></select></label>
+    <label>Metric
+      <select id="metric">
+        <option value="sessions">Visitors</option>
+        <option value="pageviews">Views</option>
+      </select>
+    </label>
+    <label>Range
+      <select id="days">
+        <option value="30">Last 30 days</option>
+        <option value="90" selected>Last 90 days</option>
+        <option value="180">Last 180 days</option>
+        <option value="365">Last 365 days</option>
+      </select>
+    </label>
+    <label>Average
+      <select id="win">
+        <option value="7" selected>7-day</option>
+        <option value="14">14-day</option>
+        <option value="28">28-day</option>
+      </select>
+    </label>
+    <label>Second average
+      <select id="win2">
+        <option value="0">None</option>
+        <option value="28" selected>28-day</option>
+        <option value="56">56-day</option>
+      </select>
+    </label>
+    <label>Country (ISO code)
+      <input id="country" placeholder="all" maxlength="2" autocomplete="off">
+    </label>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <div id="msg">Loading…</div>
+    <div id="chart" hidden>
+      <svg id="svg" role="img" aria-label="Daily values with moving average"></svg>
+      <div id="tip"></div>
+    </div>
+    <div class="legend" id="legend" hidden></div>
+    <p class="note">
+      Averages are trailing: a day's value is the mean of it and the days before it, with
+      days without traffic counted as 0. Today is still in progress, so its bar is faded
+      and it is left out of the averages. Visitors and views are counted as Umami counts them.
+    </p>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Helsinki';
+  const PREFS = 'naapurustot.trend';
+
+  // ---- persisted controls (URL wins over localStorage) ----
+  const params = new URLSearchParams(location.search);
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(PREFS) || '{}') || {}; } catch { saved = {}; }
+  const initial = k => params.get(k) ?? saved[k];
+  for (const k of ['metric', 'days', 'win', 'win2']) {
+    const v = initial(k);
+    if (v != null && [...$(k).options].some(o => o.value === v)) $(k).value = v;
+  }
+  $('country').value = (initial('country') || '').toUpperCase();
+
+  function persist() {
+    const p = {
+      website: $('website').value, metric: $('metric').value, days: $('days').value,
+      win: $('win').value, win2: $('win2').value, country: $('country').value.trim().toUpperCase(),
+    };
+    try { localStorage.setItem(PREFS, JSON.stringify(p)); } catch { /* private mode */ }
+    const q = new URLSearchParams(Object.entries(p).filter(([, v]) => v));
+    history.replaceState(null, '', '?' + q.toString());
+    $('back').href = p.website ? '/websites/' + encodeURIComponent(p.website) : '/';
+  }
+
+  // ---- Umami API ----
+  function token() {
+    try { return JSON.parse(localStorage.getItem('umami.auth') || 'null'); } catch { return null; }
+  }
+  class AuthError extends Error {}
+  async function api(path) {
+    const t = token();
+    if (!t) throw new AuthError();
+    const res = await fetch('/api' + path, { headers: { authorization: 'Bearer ' + t } });
+    if (res.status === 401 || res.status === 403) throw new AuthError();
+    if (!res.ok) throw new Error('Umami answered HTTP ' + res.status);
+    return res.json();
+  }
+
+  function showMessage(html) {
+    $('msg').innerHTML = html; $('msg').hidden = false;
+    $('chart').hidden = true; $('legend').hidden = true; $('stats').innerHTML = '';
+  }
+  function showAuth() {
+    showMessage('Not signed in to Umami in this browser. <a href="/login">Sign in</a>, then come back to <code>/trend</code>.');
+  }
+
+  // ---- dates (all in the viewer's time zone, the same one sent to Umami) ----
+  const dayKey = d => d.toLocaleDateString('sv-SE', { timeZone: TZ }); // YYYY-MM-DD
+  function dayKeys(firstMidnight, n) {
+    const out = [];
+    const d = new Date(firstMidnight);
+    for (let i = 0; i < n; i++) {
+      out.push(dayKey(d));
+      d.setDate(d.getDate() + 1);
+      d.setHours(0, 0, 0, 0); // stays on local midnight across DST changes
+    }
+    return out;
+  }
+
+  // ---- load + render ----
+  let seq = 0;
+  async function load() {
+    persist();
+    const websiteId = $('website').value;
+    if (!websiteId) return;
+    const my = ++seq;
+    const days = +$('days').value, win = +$('win').value, win2 = +$('win2').value;
+    const lead = Math.max(win, win2) - 1; // fetch extra days so the first shown day has a full window
+    const total = days + lead;
+
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (total - 1));
+    const q = new URLSearchParams({
+      startAt: String(start.getTime()), endAt: String(Date.now()), unit: 'day', timezone: TZ,
+    });
+    const country = $('country').value.trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(country)) q.set('country', 'eq.' + country);
+
+    $('msg').textContent = 'Loading…';
+    let data;
+    try {
+      data = await api('/websites/' + encodeURIComponent(websiteId) + '/pageviews?' + q);
+    } catch (e) {
+      if (my !== seq) return;
+      return e instanceof AuthError ? showAuth() : showMessage('Could not load: ' + e.message);
+    }
+    if (my !== seq) return;
+
+    const series = data[$('metric').value] || [];
+    const byDay = new Map(series.map(p => [String(p.x).slice(0, 10), Number(p.y) || 0]));
+    const keys = dayKeys(start, total);
+    const values = keys.map(k => byDay.get(k) ?? 0);
+    const todayIdx = keys.length - 1; // partial day: drawn, never averaged
+
+    const avg = w => keys.map((_, i) => {
+      if (!w || i >= todayIdx || i < w - 1) return null;
+      let s = 0; for (let j = i - w + 1; j <= i; j++) s += values[j];
+      return s / w;
+    });
+    const ma = avg(win), ma2 = win2 && win2 !== win ? avg(win2) : null;
+
+    const shown = keys.slice(lead).map((k, i) => ({
+      key: k, v: values[i + lead], ma: ma[i + lead], ma2: ma2 ? ma2[i + lead] : null,
+      today: i + lead === todayIdx,
+    }));
+    renderStats(values, todayIdx, win);
+    renderChart(shown, win, ma2 ? win2 : 0);
+  }
+
+  const fmt = n => n == null ? '–' : n >= 100 ? Math.round(n).toLocaleString('en-GB')
+    : n.toLocaleString('en-GB', { maximumFractionDigits: 1 });
+
+  function renderStats(values, todayIdx, win) {
+    const sum = (a, b) => { let s = 0; for (let i = a; i < b; i++) s += values[i]; return s; };
+    const end = todayIdx; // exclusive: last complete day is todayIdx - 1
+    const cur = end - win >= 0 ? sum(end - win, end) / win : null;
+    const prev = end - 2 * win >= 0 ? sum(end - 2 * win, end - win) / win : null;
+    const metric = $('metric').selectedOptions[0].textContent.toLowerCase();
+    const delta = cur != null && prev ? (cur - prev) / prev : null;
+    const dHtml = delta == null ? '' :
+      `<div class="d ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta * 100).toFixed(0)}% vs the ${win} days before</div>`;
+    $('stats').innerHTML =
+      `<div class="card stat"><div class="k">${win}-day average ${metric}/day</div><div class="v">${fmt(cur)}</div>${dHtml}</div>` +
+      `<div class="card stat"><div class="k">Previous ${win} days, ${metric}/day</div><div class="v">${fmt(prev)}</div></div>` +
+      `<div class="card stat"><div class="k">Today so far</div><div class="v">${fmt(values[todayIdx])}</div></div>`;
+  }
+
+  function niceMax(m) {
+    if (m <= 0) return 10;
+    const p = Math.pow(10, Math.floor(Math.log10(m)));
+    for (const s of [1, 2, 2.5, 5, 10]) if (s * p >= m) return s * p;
+    return 10 * p;
+  }
+
+  let last = null; // re-rendered on resize so the SVG's units stay ~1 CSS px
+  function renderChart(rows, win, win2) {
+    last = [rows, win, win2];
+    $('msg').hidden = true; $('chart').hidden = false;
+    const W = Math.max(300, $('chart').clientWidth || 1100);
+    const H = Math.round(Math.min(380, Math.max(240, W * 0.42))), L = 40, R = 8, T = 12, B = 30;
+    const iw = W - L - R, ih = H - T - B;
+    const max = niceMax(Math.max(1, ...rows.map(r => Math.max(r.v, r.ma || 0, r.ma2 || 0))));
+    const n = rows.length, step = iw / n, bw = Math.max(1, step * 0.72);
+    const x = i => L + i * step + step / 2, y = v => T + ih - (v / max) * ih;
+    const css = getComputedStyle(document.documentElement);
+    const c = k => css.getPropertyValue(k).trim();
+
+    let s = '';
+    for (let t = 0; t <= 5; t++) {
+      const v = (max / 5) * t, yy = y(v);
+      s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/>`;
+      s += `<text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(v)}</text>`;
+    }
+    const every = Math.max(1, Math.ceil(n / Math.max(3, Math.floor(iw / 80))));
+    rows.forEach((r, i) => {
+      s += `<rect x="${x(i) - bw / 2}" y="${y(r.v)}" width="${bw}" height="${T + ih - y(r.v)}" fill="${c(r.today ? '--bar-today' : '--bar')}"/>`;
+      if ((n - 1 - i) % every === 0) {
+        const d = new Date(r.key + 'T12:00:00');
+        const anchor = i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle';
+        s += `<text x="${i === n - 1 ? W - R : x(i)}" y="${H - 10}" text-anchor="${anchor}">${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`;
+      }
+    });
+    const path = key => {
+      let d = '', on = false;
+      rows.forEach((r, i) => {
+        if (r[key] == null) { on = false; return; }
+        d += (on ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(r[key]).toFixed(1); on = true;
+      });
+      return d;
+    };
+    if (win2) s += `<path d="${path('ma2')}" fill="none" stroke="${c('--ma2')}" stroke-width="2" stroke-dasharray="6 4"/>`;
+    s += `<path d="${path('ma')}" fill="none" stroke="${c('--ma')}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    s += `<line id="cursor" x1="0" x2="0" y1="${T}" y2="${T + ih}" stroke="${c('--muted')}" stroke-dasharray="2 3" visibility="hidden"/>`;
+    s += `<rect id="hit" x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent"/>`;
+
+    const svg = $('svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = s;
+
+    const metric = $('metric').selectedOptions[0].textContent;
+    $('legend').innerHTML =
+      `<span><span class="sw" style="background:${c('--bar')}"></span>${metric} per day</span>` +
+      `<span><span class="sw" style="background:${c('--ma')}"></span>${win}-day average</span>` +
+      (win2 ? `<span><span class="sw" style="background:${c('--ma2')}"></span>${win2}-day average</span>` : '');
+    $('legend').hidden = false;
+
+    const tip = $('tip'), cursor = svg.querySelector('#cursor');
+    const hit = svg.querySelector('#hit');
+    hit.addEventListener('pointermove', e => {
+      const box = svg.getBoundingClientRect();
+      const sx = (e.clientX - box.left) * (W / box.width);
+      const i = Math.min(n - 1, Math.max(0, Math.floor((sx - L) / step)));
+      const r = rows[i];
+      cursor.setAttribute('x1', x(i)); cursor.setAttribute('x2', x(i));
+      cursor.setAttribute('visibility', 'visible');
+      const d = new Date(r.key + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      tip.innerHTML = `<b>${d}</b>${r.today ? ' (so far)' : ''}<br>${metric}: ${fmt(r.v)}` +
+        `<br>${win}-day avg: ${fmt(r.ma)}` + (win2 ? `<br>${win2}-day avg: ${fmt(r.ma2)}` : '');
+      tip.style.display = 'block';
+      const px = x(i) * (box.width / W);
+      const left = px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12;
+      tip.style.left = left + 'px'; tip.style.top = '8px';
+    });
+    hit.addEventListener('pointerleave', () => { tip.style.display = 'none'; cursor.setAttribute('visibility', 'hidden'); });
+  }
+
+  // ---- boot ----
+  async function boot() {
+    let list;
+    try { list = await api('/websites?pageSize=100'); }
+    catch (e) { return e instanceof AuthError ? showAuth() : showMessage('Could not load websites: ' + e.message); }
+    const sites = Array.isArray(list) ? list : (list.data || []);
+    if (!sites.length) return showMessage('No websites in this Umami account.');
+    const sel = $('website');
+    for (const w of sites) {
+      const o = document.createElement('option');
+      o.value = w.id; o.textContent = w.name || w.domain || w.id;
+      sel.appendChild(o);
+    }
+    const want = initial('website');
+    if (want && sites.some(w => w.id === want)) sel.value = want;
+    for (const id of ['website', 'metric', 'days', 'win', 'win2']) $(id).addEventListener('change', load);
+    $('country').addEventListener('change', load);
+    let rt = 0;
+    window.addEventListener('resize', () => {
+      clearTimeout(rt);
+      rt = setTimeout(() => { if (last && !$('chart').hidden) renderChart(...last); }, 150);
+    });
+    load();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

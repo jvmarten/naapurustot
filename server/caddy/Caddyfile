@@ -1,5 +1,18 @@
 analytics.naapurustot.fi {
-	reverse_proxy umami:3000
+	# /trend: a moving-average view of Umami's daily chart (umami-trend/index.html,
+	# reached through the ./caddy:/etc/caddy directory mount). Same origin as Umami,
+	# so it reuses the dashboard login and calls Umami's own API; Umami is unmodified.
+	# Umami has no /trend route of its own.
+	@trend path /trend /trend/
+	handle @trend {
+		root * /etc/caddy/umami-trend
+		rewrite * /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+	handle {
+		reverse_proxy umami:3000
+	}
 }
 
 api.naapurustot.fi {
