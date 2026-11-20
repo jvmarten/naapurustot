@@ -2,8 +2,10 @@ analytics.naapurustot.fi {
 	# /trend: a moving-average view of Umami's daily chart (umami-trend/index.html,
 	# reached through the ./caddy:/etc/caddy directory mount). Same origin as Umami,
 	# so it reuses the dashboard login and calls Umami's own API; Umami is unmodified.
-	# Umami has no /trend route of its own.
-	@trend path /trend /trend/
+	# Umami has no /trend route of its own. A prefix match, so a stray suffix (a link
+	# that picked up trailing punctuation, /trends, /trend.html) still lands here
+	# instead of on Umami's "Page not found".
+	@trend path /trend*
 	handle @trend {
 		root * /etc/caddy/umami-trend
 		rewrite * /index.html
