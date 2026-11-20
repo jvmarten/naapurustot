@@ -420,6 +420,17 @@ Generate secrets with: `openssl rand -hex 32`
    ```
    This is safe to re-run — it skips if the website already exists.
 
+## Moving-average view (`/trend`)
+
+`https://analytics.naapurustot.fi/trend` shows Umami's daily visitors or views with a
+7/14/28-day trailing average (and an optional second, longer one), filterable by
+country. It is one static page, `caddy/umami-trend/index.html`, served by Caddy on
+Umami's own origin: it reads the dashboard's login token (`localStorage["umami.auth"]`)
+and calls Umami's `/api/websites/:id/pageviews`, the endpoint the dashboard chart uses.
+Umami itself is not modified, so upgrading the image does not touch it. Sign in to
+the dashboard first; the page links back to it. Settings are kept in the URL, so a
+view can be bookmarked.
+
 ## Custom event tracking
 
 Track feature usage from the frontend via the Umami script:
