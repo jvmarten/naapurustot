@@ -16,6 +16,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM } from '../uti
 import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import { subscribeMapHighlight } from '../utils/mapHighlight';
 import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
+import { guardRepeatedContextLoss } from '../utils/contextLossGuard';
 import { applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/countryBorders';
 // CF-5 Phase D1: pre-baked boundary outlines of all 69 Finnish seutukunnat.
 import type { CountryId } from '../utils/areaId';
@@ -431,6 +432,7 @@ export const Map: React.FC<MapProps> = React.memo(({ data, activeLayer, onHover,
     // driver hiccup). The synchronous try/catch above only covers construction;
     // these listeners surface the same fallback UI for a transient loss and clear
     // it if the browser restores the context.
+    guardRepeatedContextLoss(map);
     const canvas = map.getCanvas();
     const onLost = (ev: Event) => { ev.preventDefault(); setWebglPermanent(false); setWebglFailed(true); };
     const onRestored = () => setWebglFailed(false);
