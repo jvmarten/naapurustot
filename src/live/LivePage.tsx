@@ -10,6 +10,7 @@ import {
   type SolarFrame,
 } from '../utils/sun';
 import { basemapStyleUrl, addBasemapAttribution } from '../utils/basemap';
+import { guardRepeatedContextLoss } from '../utils/contextLossGuard';
 import { t, getLang, setLang, useI18nVersion, type Lang } from '../utils/i18n';
 import { useTheme } from '../hooks/useTheme';
 import { FeedSidebar } from './FeedSidebar';
@@ -4578,6 +4579,7 @@ export const LivePage: React.FC<{ lang?: Lang }> = ({ lang }) => {
         console.warn('LivePage: failed to initialize WebGL', err);
         return;
       }
+      guardRepeatedContextLoss(created);
       mapRef.current = created;
       appliedBaseThemeRef.current = themeRef.current;
       addBasemapAttribution(created, maplibregl.AttributionControl, 'bottom-right');

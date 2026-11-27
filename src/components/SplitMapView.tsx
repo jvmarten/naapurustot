@@ -15,6 +15,7 @@ import { queryFeaturesSafe, isStyleAlive } from '../utils/mapQuery';
 import type { CountryId } from '../utils/areaId';
 import { COUNTRY_IDS } from '../utils/countries';
 import { basemapStyleUrl, baseInsertBeforeId, carryDataLayers, addBasemapAttribution } from '../utils/basemap';
+import { guardRepeatedContextLoss } from '../utils/contextLossGuard';
 import { applyBaseBorders, styleBaseBorders, addCountryBorderLayer } from '../utils/countryBorders';
 
 /**
@@ -598,6 +599,8 @@ export const SplitMapView: React.FC<SplitMapViewProps> = React.memo(({
     // browser restores the context.
     const onLost = (ev: Event) => { ev.preventDefault(); setWebglPermanent(false); setWebglFailed(true); };
     const onRestored = () => setWebglFailed(false);
+    guardRepeatedContextLoss(leftMap);
+    guardRepeatedContextLoss(rightMap);
     const leftCanvas = leftMap.getCanvas();
     const rightCanvas = rightMap.getCanvas();
     leftCanvas.addEventListener('webglcontextlost', onLost, false);

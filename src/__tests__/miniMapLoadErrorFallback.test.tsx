@@ -31,6 +31,7 @@ vi.mock('maplibre-gl', () => ({
         addLayer() {
           throw new RangeError('Maximum call stack size exceeded');
         },
+        getCanvas() { return document.createElement('canvas'); },
         remove() {},
       };
     }),

@@ -4,8 +4,9 @@ import { installChunkReloadHandler, isChunkReloadPending } from '../utils/chunkR
 const RELOAD_MARK_KEY = 'naapurustot:chunk-reload-at';
 const reload = vi.fn();
 
-function dispatchPreloadError(): Event {
+function dispatchPreloadError(payload?: Error): Event {
   const event = new Event('vite:preloadError', { cancelable: true });
+  if (payload) Object.assign(event, { payload });
   window.dispatchEvent(event);
   return event;
 }
@@ -51,6 +52,25 @@ describe('installChunkReloadHandler', () => {
     const event = dispatchPreloadError();
     expect(reload).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('on cooldown, lets a stylesheet failure pass so the module still loads (NAAPURUSTOT-WEB-10)', () => {
+    sessionStorage.setItem(RELOAD_MARK_KEY, String(Date.now()));
+    const event = dispatchPreloadError(new Error('Unable to preload CSS for https://naapurustot.fi/assets/maplibre-x.css'));
+    expect(reload).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+    expect(isChunkReloadPending()).toBe(false);
+  });
+
+  it('on cooldown, still surfaces a failed module import', () => {
+    sessionStorage.setItem(RELOAD_MARK_KEY, String(Date.now()));
+    const event = dispatchPreloadError(new TypeError('Failed to fetch dynamically imported module: /assets/App-x.js'));
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('a stylesheet failure outside the cooldown still reloads once (stale deploy)', () => {
+    dispatchPreloadError(new Error('Unable to preload CSS for https://naapurustot.fi/assets/old.css'));
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it('reloads again once the cooldown has elapsed', () => {

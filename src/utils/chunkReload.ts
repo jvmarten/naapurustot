@@ -45,6 +45,13 @@ export function isChunkReloadPending(): boolean {
   return reloadPending;
 }
 
+// Vite rejects a failed stylesheet dep with exactly this message (its preload helper's
+// `link.onerror`); the event carries that Error as `payload`.
+function isCssPreloadError(event: Event): boolean {
+  const payload = (event as Event & { payload?: unknown }).payload;
+  return payload instanceof Error && payload.message.startsWith('Unable to preload CSS');
+}
+
 // Reload once when a dynamic import fails so the page picks up fresh chunk
 // references after a deployment. Call once at startup; returns a disposer.
 export function installChunkReloadHandler(): () => void {
@@ -58,7 +65,20 @@ export function installChunkReloadHandler(): () => void {
       event.preventDefault();
       return;
     }
-    if (!claimReload(Date.now())) return;
+    if (!claimReload(Date.now())) {
+      // No reload allowed (one just happened, or sessionStorage is unavailable), so
+      // this is not a stale deploy. A stylesheet that will not load is not fatal:
+      // Vite's `__vitePreload` checks its CSS deps (`allSettled`) BEFORE importing
+      // the module, and once a CSS failure is prevented it goes on to the import, so
+      // the JS still loads and the page renders without that sheet. Left to its
+      // default, the throw took the whole map route down to the error boundary.
+      // That was Sentry NAAPURUSTOT-WEB-10: 1,043 events of "Unable to preload CSS
+      // for …/maplibre-*.css" against the live build's own, existing file, almost
+      // all from headless Chrome on Linux, which blocks stylesheet requests. JS
+      // failures still surface, because an import that resolves to `undefined` crashes anyway.
+      if (isCssPreloadError(event)) event.preventDefault();
+      return;
+    }
     reloadPending = true;
     // Suppress the otherwise-uncaught error — the page is about to reload.
     event.preventDefault();

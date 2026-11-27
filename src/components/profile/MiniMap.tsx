@@ -5,6 +5,7 @@ import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon } from
 import { useTheme } from '../../hooks/useTheme';
 import { t, useI18nVersion } from '../../utils/i18n';
 import { basemapStyleUrl, baseInsertBeforeId } from '../../utils/basemap';
+import { guardRepeatedContextLoss } from '../../utils/contextLossGuard';
 
 interface MiniMapProps {
   feature: Feature<Polygon | MultiPolygon>;
@@ -72,6 +73,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ feature, allFeatures }) => {
       setWebglFailed(true);
       return;
     }
+    guardRepeatedContextLoss(map);
 
     map.on('load', () => {
       // Adding sources/layers makes MapLibre synchronously process the region
